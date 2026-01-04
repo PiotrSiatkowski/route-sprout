@@ -1,3 +1,8 @@
+// ---------- Helpers ----------------------
+type KebabToCamel<S extends string> = S extends `${infer A}-${infer B}`
+	? `${A}${Capitalize<KebabToCamel<B>>}`
+	: S
+
 // ---------- Shared public types ----------
 type Segment = string | number
 type SParams = string | URLSearchParams
@@ -7,19 +12,22 @@ type Keep = { kind: 'keep' }
 
 type Path<
 	Name extends string = string,
+	Uuid extends string = string,
 	Rest extends readonly PathDef[] = readonly PathDef[],
-> = { kind: 'path'; name: Name; rest: Rest }
+> = { kind: 'path'; name: Name; uuid: Uuid; rest: Rest }
 
 type Slot<
 	Name extends string = string,
+	Uuid extends string = string,
 	Rest extends readonly PathDef[] = readonly PathDef[],
-> = { kind: 'slot'; name: Name; rest: Rest }
+> = { kind: 'slot'; name: Name; uuid: Uuid; rest: Rest }
 
 type Wrap<
 	Name extends string = string,
+	Uuid extends string = string,
 	Rest extends readonly PathDef[] = readonly PathDef[],
 	Args = unknown,
-> = { kind: 'wrap'; name: Name; rest: Rest; when: (args: Args) => boolean }
+> = { kind: 'wrap'; name: Name; uuid: Uuid; rest: Rest; when: (args: Args) => boolean }
 
 type SlotDef =
 	| Path<string, readonly PathDef[]>
@@ -29,8 +37,8 @@ type PathDef = SlotDef | Keep
 
 // ---------- Type-level route builder ----------
 interface Whenable {
-	when(cond: boolean, seg: Segment | readonly Segment[]): this
-	join(seg: Segment | readonly Segment[]): this
+	$when(cond: boolean, seg: Segment | readonly Segment[]): this
+	$join(seg: Segment | readonly Segment[]): this
 }
 
 type HasKeep<Rest extends readonly PathDef[]> =
@@ -41,11 +49,11 @@ type NonKeepChildren<Rest extends readonly PathDef[]> = Exclude<Rest[number], Ke
 type PropsFromChildren<Rest extends readonly PathDef[]> = {
 	[C in NonKeepChildren<Rest> as C extends { name: infer N extends string }
 		? N
-		: never]: C extends Path<any, any>
+		: never]: C extends Path<any, any, any>
 		? RouteFromPath<C>
-		: C extends Slot<any, any>
+		: C extends Slot<any, any, any>
 			? RouteFromSlot<C>
-			: C extends Wrap<any, any, any>
+			: C extends Wrap<any, any, any, any>
 				? RouteFromWrap<C>
 				: never
 }
@@ -53,7 +61,7 @@ type PropsFromChildren<Rest extends readonly PathDef[]> = {
 type WithWhen<T> = T & Whenable
 
 // Example: apply it to the outputs
-type RouteFromPath<N extends Path<any, any>> = WithWhen<
+type RouteFromPath<N extends Path<any, any, any>> = WithWhen<
 	N['rest'] extends readonly []
 		? (search?: SParams) => string
 		: HasKeep<N['rest']> extends true
@@ -69,9 +77,9 @@ type SlotResult<Rest extends readonly PathDef[]> = WithWhen<
 			: PropsFromChildren<Rest>
 >
 
-type RouteFromSlot<I extends Slot<any, any>> = (param: Segment) => SlotResult<I['rest']>
+type RouteFromSlot<I extends Slot<any, any, any>> = (param: Segment) => SlotResult<I['rest']>
 
-type WrapArg<W extends Wrap<any, any, any>> = Parameters<W['when']>[0]
+type WrapArg<W extends Wrap<any, any, any, any>> = Parameters<W['when']>[0]
 
 type WrapResult<Rest extends readonly PathDef[]> = WithWhen<
 	HasKeep<Rest> extends true
@@ -79,7 +87,7 @@ type WrapResult<Rest extends readonly PathDef[]> = WithWhen<
 		: PropsFromChildren<Rest>
 >
 
-type RouteFromWrap<W extends Wrap<any, any, any>> = (arg: WrapArg<W>) => WrapResult<W['rest']>
+type RouteFromWrap<W extends Wrap<any, any, any, any>> = (arg: WrapArg<W>) => WrapResult<W['rest']>
 
 type RoutesFromDefs<Defs extends readonly PathDef[]> = WithWhen<
 	HasKeep<Defs> extends true
@@ -87,10 +95,11 @@ type RoutesFromDefs<Defs extends readonly PathDef[]> = WithWhen<
 		: PropsFromChildren<Defs>
 >
 
+type KeyFromSeg<S extends string> = KebabToCamel<S>;
 declare const keep: () => Keep;
-declare const path: <const Name extends string, const Rest extends readonly PathDef[] = readonly []>(name: Name, rest?: Rest) => Path<Name, Rest>;
-declare const slot: <const Name extends string, const Rest extends readonly PathDef[] = readonly []>(name: Name, rest?: Rest) => Slot<Name, Rest>;
-declare const wrap: <const Name extends string, const Rest extends readonly PathDef[] = readonly [], Args = unknown>(name: Name, when: (args: Args) => boolean, rest?: Rest) => Wrap<Name, Rest, Args>;
+declare const path: <const Name extends string, const Rest extends readonly PathDef[] = readonly []>(name: Name, rest?: Rest) => Path<Name, KeyFromSeg<Name>, Rest>;
+declare const slot: <const Name extends string, const Rest extends readonly PathDef[] = readonly []>(name: Name, rest?: Rest) => Slot<Name, KeyFromSeg<Name>, Rest>;
+declare const wrap: <const Name extends string, const Rest extends readonly PathDef[] = readonly [], Args = unknown>(name: Name, when: (args: Args) => boolean, rest?: Rest) => Wrap<Name, KeyFromSeg<Name>, Rest, Args>;
 declare function root<const Defs extends readonly PathDef[]>(defs: Defs): RoutesFromDefs<Defs>;
 
 export { keep, path, root, slot, wrap };

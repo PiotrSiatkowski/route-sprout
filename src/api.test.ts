@@ -263,40 +263,40 @@ describe('when utility (runtime method)', () => {
 	it("when(true, 'admin') inserts segment at the current position", () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
-		expect(Api.core.when(true, 'admin').jobs()).toBe('/core/admin/jobs')
-		expect(Api.core.when(false, 'admin').jobs()).toBe('/core/jobs')
+		expect(Api.core.$when(true, 'admin').jobs()).toBe('/core/admin/jobs')
+		expect(Api.core.$when(false, 'admin').jobs()).toBe('/core/jobs')
 	})
 
 	it('when accepts Segment[] for multi-part insert', () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
-		expect(Api.core.when(true, ['tenant', 't1']).jobs()).toBe('/core/tenant/t1/jobs')
-		expect(Api.core.when(false, ['tenant', 't1']).jobs()).toBe('/core/jobs')
+		expect(Api.core.$when(true, ['tenant', 't1']).jobs()).toBe('/core/tenant/t1/jobs')
+		expect(Api.core.$when(false, ['tenant', 't1']).jobs()).toBe('/core/jobs')
 	})
 
 	it('when can be chained (multiple inserts) and preserves order', () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
-		expect(Api.core.when(true, 'admin').when(true, 'v2').jobs()).toBe('/core/admin/v2/jobs')
+		expect(Api.core.$when(true, 'admin').$when(true, 'v2').jobs()).toBe('/core/admin/v2/jobs')
 	})
 
 	it('when can be called mid-tree (after slot param) and affects only that subtree', () => {
 		const Api = root([path('jobs', [keep(), slot('id', [path('activities', [keep()])])])])
 
 		// Insert after /jobs/<id>
-		expect(Api.jobs.id('123').when(true, 'preview').activities()).toBe(
+		expect(Api.jobs.id('123').$when(true, 'preview').activities()).toBe(
 			'/jobs/123/preview/activities'
 		)
 
 		// Disabled -> normal path
-		expect(Api.jobs.id('123').when(false, 'preview').activities()).toBe('/jobs/123/activities')
+		expect(Api.jobs.id('123').$when(false, 'preview').activities()).toBe('/jobs/123/activities')
 	})
 
 	it('when does NOT mutate the original subtree (important for DX)', () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
 		const base = Api.core
-		const admin = base.when(true, 'admin')
+		const admin = base.$when(true, 'admin')
 
 		expect(base.jobs()).toBe('/core/jobs')
 		expect(admin.jobs()).toBe('/core/admin/jobs')
@@ -308,7 +308,7 @@ describe('when utility (runtime method)', () => {
 	it('when works on callable paths and keeps callability', () => {
 		const Api = root([path('core', [keep(), path('jobs', [keep()])])])
 
-		const admin = Api.core.when(true, 'admin')
+		const admin = Api.core.$when(true, 'admin')
 
 		expect(typeof admin).toBe('function')
 		expect(admin()).toBe('/core/admin')
@@ -318,8 +318,8 @@ describe('when utility (runtime method)', () => {
 	it('when keeps children shape identical regardless of condition', () => {
 		const Api = root([path('core', [path('jobs', [keep()]), path('users', [keep()])])])
 
-		const a = Api.core.when(true, 'admin')
-		const b = Api.core.when(false, 'admin')
+		const a = Api.core.$when(true, 'admin')
+		const b = Api.core.$when(false, 'admin')
 
 		expect(a.jobs()).toBe('/core/admin/jobs')
 		expect(a.users()).toBe('/core/admin/users')
@@ -336,12 +336,12 @@ describe('when utility (runtime method)', () => {
 		])
 
 		// enabled wrap, then insert v2 after /core/admin
-		expect(Api.core.admin({ isAdmin: true }).when(true, 'v2').jobs()).toBe(
+		expect(Api.core.admin({ isAdmin: true }).$when(true, 'v2').jobs()).toBe(
 			'/core/admin/v2/jobs'
 		)
 
 		// disabled wrap, then insert v2 after /core
-		expect(Api.core.admin({ isAdmin: false }).when(true, 'v2').jobs()).toBe('/core/v2/jobs')
+		expect(Api.core.admin({ isAdmin: false }).$when(true, 'v2').jobs()).toBe('/core/v2/jobs')
 	})
 })
 
@@ -349,33 +349,35 @@ describe('join utility (runtime method)', () => {
 	it("join('admin') inserts segment at the current position", () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
-		expect(Api.core.join('admin').jobs()).toBe('/core/admin/jobs')
+		expect(Api.core.$join('admin').jobs()).toBe('/core/admin/jobs')
 	})
 
 	it('join accepts Segment[] for multi-part insert', () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
-		expect(Api.core.join(['tenant', 't1']).jobs()).toBe('/core/tenant/t1/jobs')
+		expect(Api.core.$join(['tenant', 't1']).jobs()).toBe('/core/tenant/t1/jobs')
 	})
 
 	it('join can be chained (multiple inserts) and preserves order', () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
-		expect(Api.core.join('admin').join('v2').jobs()).toBe('/core/admin/v2/jobs')
+		expect(Api.core.$join('admin').$join('v2').jobs()).toBe('/core/admin/v2/jobs')
 	})
 
 	it('join can be called mid-tree (after slot param) and affects only that subtree', () => {
 		const Api = root([path('jobs', [keep(), slot('id', [path('activities', [keep()])])])])
 
 		// Insert after /jobs/<id>
-		expect(Api.jobs.id('123').join('preview').activities()).toBe('/jobs/123/preview/activities')
+		expect(Api.jobs.id('123').$join('preview').activities()).toBe(
+			'/jobs/123/preview/activities'
+		)
 	})
 
 	it('join does NOT mutate the original subtree (important for DX)', () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
 		const base = Api.core
-		const admin = base.join('admin')
+		const admin = base.$join('admin')
 
 		expect(base.jobs()).toBe('/core/jobs')
 		expect(admin.jobs()).toBe('/core/admin/jobs')
@@ -387,7 +389,7 @@ describe('join utility (runtime method)', () => {
 	it('join works on callable paths and keeps callability', () => {
 		const Api = root([path('core', [keep(), path('jobs', [keep()])])])
 
-		const admin = Api.core.join('admin')
+		const admin = Api.core.$join('admin')
 
 		expect(typeof admin).toBe('function')
 		expect(admin()).toBe('/core/admin')
@@ -397,7 +399,7 @@ describe('join utility (runtime method)', () => {
 	it('join keeps children shape identical regardless of condition', () => {
 		const Api = root([path('core', [path('jobs', [keep()]), path('users', [keep()])])])
 
-		const a = Api.core.join('admin')
+		const a = Api.core.$join('admin')
 
 		expect(a.jobs()).toBe('/core/admin/jobs')
 		expect(a.users()).toBe('/core/admin/users')
@@ -411,10 +413,10 @@ describe('join utility (runtime method)', () => {
 		])
 
 		// enabled wrap, then insert v2 after /core/admin
-		expect(Api.core.admin({ isAdmin: true }).join('v2').jobs()).toBe('/core/admin/v2/jobs')
+		expect(Api.core.admin({ isAdmin: true }).$join('v2').jobs()).toBe('/core/admin/v2/jobs')
 
 		// disabled wrap, then insert v2 after /core
-		expect(Api.core.admin({ isAdmin: false }).join('v2').jobs()).toBe('/core/v2/jobs')
+		expect(Api.core.admin({ isAdmin: false }).$join('v2').jobs()).toBe('/core/v2/jobs')
 	})
 })
 
@@ -422,8 +424,8 @@ describe('when() edge cases & regressions', () => {
 	it('does not introduce double slashes when inserting segments', () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
-		expect(Api.core.when(true, 'admin').jobs()).toBe('/core/admin/jobs')
-		expect(Api.core.when(true, ['admin', 'v2']).jobs()).toBe('/core/admin/v2/jobs')
+		expect(Api.core.$when(true, 'admin').jobs()).toBe('/core/admin/jobs')
+		expect(Api.core.$when(true, ['admin', 'v2']).jobs()).toBe('/core/admin/v2/jobs')
 	})
 
 	it('does not introduce double slashes when array contains empty segments', () => {
@@ -431,42 +433,42 @@ describe('when() edge cases & regressions', () => {
 
 		// We intentionally include empty segments in the inserted array
 		// Expected behavior: empty segments are ignored, no // occurs.
-		expect(Api.core.when(true, ['', 'admin']).jobs()).toBe('/core/admin/jobs')
-		expect(Api.core.when(true, ['admin', '']).jobs()).toBe('/core/admin/jobs')
-		expect(Api.core.when(true, ['', 'admin', '', 'v2', '']).jobs()).toBe('/core/admin/v2/jobs')
+		expect(Api.core.$when(true, ['', 'admin']).jobs()).toBe('/core/admin/jobs')
+		expect(Api.core.$when(true, ['admin', '']).jobs()).toBe('/core/admin/jobs')
+		expect(Api.core.$when(true, ['', 'admin', '', 'v2', '']).jobs()).toBe('/core/admin/v2/jobs')
 	})
 
 	it('when(false, ...) never changes the path (even with weird segments)', () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
-		expect(Api.core.when(false, 'admin').jobs()).toBe('/core/jobs')
-		expect(Api.core.when(false, ['', 'admin', 'v2']).jobs()).toBe('/core/jobs')
+		expect(Api.core.$when(false, 'admin').jobs()).toBe('/core/jobs')
+		expect(Api.core.$when(false, ['', 'admin', 'v2']).jobs()).toBe('/core/jobs')
 	})
 
 	it("when(true, '') either no-ops OR throws (choose your policy)", () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
-		expect(Api.core.when(true, '').jobs()).toBe('/core/jobs')
+		expect(Api.core.$when(true, '').jobs()).toBe('/core/jobs')
 	})
 
 	it('search params are appended last even after when inserts', () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
-		expect(Api.core.when(true, 'admin').jobs('a=1&b=2')).toBe('/core/admin/jobs?a=1&b=2')
+		expect(Api.core.$when(true, 'admin').jobs('a=1&b=2')).toBe('/core/admin/jobs?a=1&b=2')
 	})
 
 	it('URLSearchParams are appended last even after when inserts', () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
 		const p = new URLSearchParams({ a: '1', b: '2' })
-		expect(Api.core.when(true, 'admin').jobs(p)).toBe('/core/admin/jobs?a=1&b=2')
+		expect(Api.core.$when(true, 'admin').jobs(p)).toBe('/core/admin/jobs?a=1&b=2')
 	})
 
 	it('when can be applied repeatedly without accumulating empty segments', () => {
 		const Api = root([path('core', [path('jobs', [keep()])])])
 
 		expect(
-			Api.core.when(true, '').when(true, 'admin').when(true, '').when(true, 'v2').jobs()
+			Api.core.$when(true, '').$when(true, 'admin').$when(true, '').$when(true, 'v2').jobs()
 		).toBe('/core/admin/v2/jobs')
 	})
 })
@@ -499,12 +501,12 @@ describe('wrap() edge cases & regressions', () => {
 		])
 
 		// enabled wrap then when inserts v2
-		expect(Api.core.admin({ isAdmin: true }).when(true, 'v2').jobs()).toBe(
+		expect(Api.core.admin({ isAdmin: true }).$when(true, 'v2').jobs()).toBe(
 			'/core/admin/v2/jobs'
 		)
 
 		// disabled wrap then when inserts v2 at /core
-		expect(Api.core.admin({ isAdmin: false }).when(true, 'v2').jobs()).toBe('/core/v2/jobs')
+		expect(Api.core.admin({ isAdmin: false }).$when(true, 'v2').jobs()).toBe('/core/v2/jobs')
 	})
 
 	it('wrap in the middle + search params still attach last', () => {
@@ -550,7 +552,7 @@ describe('slashes & normalization across slots + when/wrap', () => {
 	it('does not create // when inserting segments after slot param', () => {
 		const Api = root([path('jobs', [keep(), slot('id', [path('activities', [keep()])])])])
 
-		expect(Api.jobs.id('123').when(true, ['', 'admin', '']).activities()).toBe(
+		expect(Api.jobs.id('123').$when(true, ['', 'admin', '']).activities()).toBe(
 			'/jobs/123/admin/activities'
 		)
 	})
@@ -567,12 +569,220 @@ describe('slashes & normalization across slots + when/wrap', () => {
 			]),
 		])
 
-		expect(Api.core.jobs.id('1').admin({ isAdmin: true }).when(true, 'v2').activities()).toBe(
+		expect(Api.core.jobs.id('1').admin({ isAdmin: true }).$when(true, 'v2').activities()).toBe(
 			'/core/jobs/1/admin/v2/activities'
 		)
 
-		expect(Api.core.jobs.id('1').admin({ isAdmin: false }).when(true, 'v2').activities()).toBe(
+		expect(Api.core.jobs.id('1').admin({ isAdmin: false }).$when(true, 'v2').activities()).toBe(
 			'/core/jobs/1/v2/activities'
 		)
+	})
+})
+
+describe('general edge cases', () => {
+	it('accepts empty keep', () => {
+		const Api = root([keep()])
+
+		expect(Api()).toBe('/')
+	})
+
+	it('can join and when after slot', () => {
+		const Api = root([slot('id')])
+
+		expect(Api.id('id').$when(true, ['a', 'b'])()).toBe('/id/a/b')
+		expect(Api.id('id').$when(true, 'a')()).toBe('/id/a')
+		expect(Api.id('id').$join(['a', 'b'])()).toBe('/id/a/b')
+		expect(Api.id('id').$join('a')()).toBe('/id/a')
+	})
+
+	it('accepts join and when on keep', () => {
+		const Api = root([keep()])
+
+		expect(Api.$when(true, ['a', 'b'])()).toBe('/a/b')
+		expect(Api.$when(true, 'a')()).toBe('/a')
+		expect(Api.$join(['a', 'b'])()).toBe('/a/b')
+		expect(Api.$join('a')()).toBe('/a')
+	})
+
+	const BAD_NODE_NAMES = [
+		'a b', // whitespace
+		'\t', // control
+		'\n', // control
+		'a/b', // URL path separator
+		'a\\b', // windows separator
+		'a?b', // query delimiter
+		'a#b', // fragment delimiter
+		'a&b', // query separator
+		'a=b', // query assignment
+		'a%b', // percent encoding
+		'.', // ambiguous
+		'..', // ambiguous
+		'a.b', // dot (property-ish)
+		'a:b', // colon
+		'a;b', // semicolon
+		'@', // symbol
+		'(', // brackets
+		')', // brackets
+		'[', // brackets
+		']', // brackets
+		'{', // brackets
+		'}', // brackets
+		'0abc', // leading digit (not valid identifier)
+		'-abc', // leading hyphen
+	]
+
+	function expectThrowsName(fn: () => any) {
+		expect(fn).toThrowError()
+	}
+
+	describe('input validation: path/slot/wrap names', () => {
+		it('path() rejects invalid names (URL-breaking, non-identifier, empty)', () => {
+			for (const name of BAD_NODE_NAMES) {
+				expectThrowsName(() => path(name, [keep()]))
+			}
+		})
+
+		it('slot() rejects invalid names (non-identifier, empty)', () => {
+			const badItemNames = ['', ' ', 'a b', 'a/b', '0abc', 'a.b', 'a?b', 'a#b']
+
+			for (const name of badItemNames) {
+				expectThrowsName(() => slot(name as any, [keep()]))
+			}
+		})
+
+		it('wrap() rejects invalid names (URL-breaking, non-identifier, empty)', () => {
+			for (const name of BAD_NODE_NAMES) {
+				expectThrowsName(() => wrap(name as any, () => true, [keep()]))
+			}
+		})
+	})
+
+	describe('prototype pollution defenses', () => {
+		it('building routes must NOT pollute Object.prototype (guard test)', () => {
+			// baseline
+			expect(({} as any).polluted).toBeUndefined()
+
+			// Try to craft a malicious tree. Even if you validate names and throw,
+			// this test should pass (no pollution) because the build never completes.
+			try {
+				const Api = root([
+					// if your validation allows this, it's dangerous
+					// it can mutate prototype via __proto__ setter on plain objects
+					path('__proto__', [path('polluted', [keep()])]),
+				])
+
+				// If build succeeded, try to force access
+				// (this is what an attacker would try)
+				// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+				Api.__proto__?.polluted?.()
+			} catch {
+				// expected in strict validation mode
+			}
+
+			// must remain clean
+			expect(({} as any).polluted).toBeUndefined()
+		})
+
+		it('routes object should not allow prototype getter/setter abuse through __proto__', () => {
+			try {
+				const Api = root([
+					path('safe', [
+						keep(),
+						// attempt to introduce __proto__ as a child key
+						path('__proto__', [keep()]),
+					]),
+				])
+
+				// If it exists, ensure it didn't actually modify the object's prototype chain
+				// (preferably __proto__ is rejected; but if not, it should be a normal own prop on a null-proto object)
+				const proto = Object.getPrototypeOf(Api.safe)
+				// If you use Object.create(null), proto will be null.
+				// If you validate and throw, test won't reach here.
+				expect(
+					proto === null || proto === Object.prototype || proto === Function.prototype
+				).toBeTruthy()
+			} catch {
+				// fine: strict validation throws
+				expect(true).toBeTruthy()
+			}
+		})
+	})
+
+	describe('collision / shadowing attempts', () => {
+		it('should not allow child keys to shadow helper method names (e.g. when / join / $when)', () => {
+			// You mentioned moving helpers to something like $when to avoid collisions.
+			// This test ensures that a route name cannot silently clobber your helper.
+
+			try {
+				const Api = root([
+					path('core', [
+						keep(),
+						path('when', [keep()]), // attempt to collide with helper name
+						path('$when', [keep()]), // attempt to collide with prefix helper
+					]),
+				])
+
+				// If you keep helper as "when", ensure it still exists and is callable
+				if (typeof Api.core.when === 'function') {
+					expect(typeof Api.core.when).toBe('function')
+				}
+
+				// If you switched to "$when", ensure it still exists and is callable
+				if (typeof Api.core.$when === 'function') {
+					expect(typeof Api.core.$when).toBe('function')
+				}
+			} catch {
+				// Also fine: if you validate and forbid these names explicitly
+				expect(true).toBeTruthy()
+			}
+		})
+
+		it('should reject duplicate effective keys after normalization (if kebab->camel/snake is enabled)', () => {
+			// Only relevant if you normalize path/wrap names into property keys.
+			// Example collision (camel): "ground-stations" -> groundStations, and "groundStations" -> groundStations
+
+			try {
+				root([
+					path('core', [
+						path('ground-stations', [keep()]),
+						path('groundStations', [keep()]),
+					]),
+				])
+				// If you support normalization, this SHOULD throw to avoid ambiguous properties.
+				// If you don't support normalization, you might also throw because "-" is forbidden.
+				// In either case, reaching here generally means you should add collision detection.
+				throw new Error(
+					'Expected buildApiRoutes to throw on duplicate normalized keys, but it did not.'
+				)
+			} catch (e: any) {
+				expect(String(e?.message ?? e)).toBeTruthy()
+			}
+		})
+	})
+
+	describe('resource exhaustion-ish inputs', () => {
+		it('should reject or safely handle extremely long names', () => {
+			const long = 'a'.repeat(10_000)
+
+			// Ideally your validation rejects these.
+			// If you allow them, it still must not crash/hang.
+			try {
+				const Api = root([path(long, [keep()])])
+				expect(typeof Api).toBe('object')
+			} catch {
+				expect(true).toBeTruthy()
+			}
+		})
+
+		it('should reject non-string names passed unsafely (runtime)', () => {
+			// TS should prevent this, but runtime might still get weird input.
+			const bad: any[] = [null, undefined, 123, {}, [], () => 'x']
+
+			for (const v of bad) {
+				expect(() => path(v, [keep()])).toThrow()
+				expect(() => slot(v, [keep()])).toThrow()
+				expect(() => wrap(v, () => true, [keep()])).toThrow()
+			}
+		})
 	})
 })

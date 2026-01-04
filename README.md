@@ -1,4 +1,4 @@
-![Render Slot Image](./image-small.png)
+![Route Sprout Image](./image.png)
 
 # route-sprout 🌱 (typed API route builder DSL)
 
@@ -9,14 +9,6 @@
 [![GitHub stars](https://img.shields.io/github/stars/PiotrSiatkowski/route-sprout?style=social)](https://github.com/PiotrSiatkowski/route-sprout)
 
 A tiny, cute DSL that grows **type-safe, composable URL builders** from a declarative route tree.
-
-- ✅ Strong TypeScript inference from your route definition
-- ✅ Nested resources with `slot('id')` parameters
-- ✅ Optional path gates with `wrap('admin', predicate, …)`
-- ✅ Ad‑hoc conditional segments anywhere with `.when(cond, segments) and join(segments)`
-- ✅ Search params supported (`string` or `URLSearchParams`)
-
-> Think of it as a little route bonsai: you shape the tree once, then pluck URLs from any branch.
 
 ---
 
@@ -39,6 +31,7 @@ const Api = root([
   path("invoices", [
     keep(),
     slot("id", [
+      keep(),
       path("price"), 
       path("customers")
     ]),
@@ -51,6 +44,16 @@ Api.invoices("page=1");                  // "/invoices?page=1"
 Api.invoices.id("abc")("a=1");           // "/invoices/abc?a=1"
 Api.invoices.id("abc").customers();      // "/invoices/abc/customers"
 ```
+
+---
+
+- ✅ Strong TypeScript inference from your route definition
+- ✅ Nested resources with `slot('id')` parameters
+- ✅ Optional path gates with `wrap('admin', predicate, …)`
+- ✅ Ad‑hoc conditional segments anywhere with `.$when(cond, segments) and join(segments)`
+- ✅ Search params supported (`string` or `URLSearchParams`)
+
+> Think of it as a little route bonsai: you shape the tree once, then pluck URLs from any branch.
 
 ---
 
@@ -72,6 +75,10 @@ This DSL gives you:
 ---
 
 ## Concepts
+
+### `root(children)`
+
+An entry point for your root tree that naturally denotes '/' path.
 
 ### `path(name, children?)`
 
@@ -142,21 +149,22 @@ Api.core.admin({ isAdmin: false }).invoices(); // "/core/invoices"
 
 > `wrap` is ideal for *well-known*, reusable gates: `admin`, `v2`, `tenant`, etc.
 
-### `.when(cond, segment | segment[])`
+### `.$when(cond, segment | segment[])`
 
 Ad‑hoc conditional segment insertion at **runtime**, anywhere in the chain.
 
 ```ts
-Api.core.when(isAdmin, "admin").invoices();
-Api.core.when(true, ["tenant", tenantId]).invoices();
-Api.invoices.id("abc").when(flags.preview, "preview").activities();
+Api.core.$when(isAdmin, "admin").invoices();
+Api.core.$when(true, ["tenant", tenantId]).invoices();
+Api.invoices.id("abc").$when(flags.preview, "preview").activities();
 ```
 
 - `cond = false` → no-op
 - `segment` can be a single segment or an array of segments
 - empty segments are ignored (your `url()` filters them out)
 
-> `.when()` is ideal when you don’t want to bake a wrapper into the route tree.
+> `.$when()` is ideal when you don’t want to bake a wrapper into the route tree.
+> `.$join()` can be used in place of $when with condition being always true.
 
 ---
 
@@ -211,8 +219,8 @@ Api.invoices(); // "/invoices"
 Api.invoices.id("123").customers(); // "/invoices/123/customers"
 
 // runtime insert
-Api.core.when(true, "v2").invoices(); // "/core/v2/invoices"
-Api.core.admin({ isAdmin: true }).when(true, "v2").invoices(); // "/core/admin/v2/invoices"
+Api.core.$when(true, "v2").invoices(); // "/core/v2/invoices"
+Api.core.admin({ isAdmin: true }).$when(true, "v2").invoices(); // "/core/admin/v2/invoices"
 ```
 
 ### Autocomplete-friendly patterns
@@ -234,10 +242,10 @@ Because everything is computed from the definition tree, your editor can autocom
 - `wrap(name, when, rest?)`
 - `keep()`
 
-### Types
+### Path level builders
 
-- `Segment = string | number`
-- `SParams = string | URLSearchParams`
+- `$when(predicate, segments)`
+- `$join(segments)`
 
 ---
 
@@ -319,10 +327,10 @@ Dialects are meant to be **all-in** per codebase/file. Technically you can mix i
 - `slot("id")` uses `"id"` **only as a property name**, not a URL segment.
   - ✅ `/invoices/123`
   - ❌ `/invoices/id/123`
-- `.when()` rebuilds a subtree and returns a new object/function.
+- `.$when()` rebuilds a subtree and returns a new object/function.
   - It does **not** mutate the original branch.
 - Empty segments are ignored in the final URL (because `url()` does `filter()`).
-  - If you want stricter behavior (throw on empty segment), enforce it in your own `.when` wrapper.
+  - If you want stricter behavior (throw on empty segment), enforce it in your own `.$when` wrapper.
 
 ---
 

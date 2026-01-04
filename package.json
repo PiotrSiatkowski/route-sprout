@@ -1,6 +1,6 @@
 {
 	"name": "route-sprout",
-	"version": "1.0.0",
+	"version": "2.0.0",
 	"description": "A tiny, cute DSL that grows type-safe, composable URL builders from a declarative route tree.",
 	"author": "Piotr Siatkowski <p.siatkowski@gmail.com>",
 	"license": "MIT",
@@ -24,9 +24,9 @@
 	},
 	"sideEffects": false,
 	"type": "module",
-	"main": "./dist/index.cjs",
-	"module": "./dist/index.js",
-	"types": "./dist/index.d.ts",
+	"main": "./dist/api.cjs",
+	"module": "./dist/api.js",
+	"types": "./dist/api.d.ts",
 	"files": [
 		"dist/**/*"
 	],
@@ -63,7 +63,7 @@
 		}
 	},
 	"scripts": {
-		"build": "vitest && tsup src/api.ts --format esm,cjs --dts --clean --sourcemap --minify",
+		"build": "vitest && tsup src/api.ts src/dialect-node.ts src/dialect-path.ts src/dialect-step.ts src/dialect-tree.ts --format esm,cjs --dts --clean --sourcemap --minify",
 		"publish": "npm publish --access public",
 		"test": "vitest"
 	},
