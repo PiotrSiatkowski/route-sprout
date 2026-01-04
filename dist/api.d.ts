@@ -1,0 +1,96 @@
+// ---------- Shared public types ----------
+type Segment = string | number
+type SParams = string | URLSearchParams
+
+// ---------- DSL definition types ----------
+type Keep = { kind: 'keep' }
+
+type Path<
+	Name extends string = string,
+	Rest extends readonly PathDef[] = readonly PathDef[],
+> = { kind: 'path'; name: Name; rest: Rest }
+
+type Slot<
+	Name extends string = string,
+	Rest extends readonly PathDef[] = readonly PathDef[],
+> = { kind: 'slot'; name: Name; rest: Rest }
+
+type Wrap<
+	Name extends string = string,
+	Rest extends readonly PathDef[] = readonly PathDef[],
+	Args = unknown,
+> = { kind: 'wrap'; name: Name; rest: Rest; when: (args: Args) => boolean }
+
+type SlotDef =
+	| Path<string, readonly PathDef[]>
+	| Slot<string, readonly PathDef[]>
+	| Wrap<string, readonly PathDef[], any>
+type PathDef = SlotDef | Keep
+
+// ---------- Type-level route builder ----------
+interface Whenable {
+	when(cond: boolean, seg: Segment | readonly Segment[]): this
+	join(seg: Segment | readonly Segment[]): this
+}
+
+type HasKeep<Rest extends readonly PathDef[]> =
+	Extract<Rest[number], Keep> extends never ? false : true
+
+type NonKeepChildren<Rest extends readonly PathDef[]> = Exclude<Rest[number], Keep>
+
+type PropsFromChildren<Rest extends readonly PathDef[]> = {
+	[C in NonKeepChildren<Rest> as C extends { name: infer N extends string }
+		? N
+		: never]: C extends Path<any, any>
+		? RouteFromPath<C>
+		: C extends Slot<any, any>
+			? RouteFromSlot<C>
+			: C extends Wrap<any, any, any>
+				? RouteFromWrap<C>
+				: never
+}
+
+type WithWhen<T> = T & Whenable
+
+// Example: apply it to the outputs
+type RouteFromPath<N extends Path<any, any>> = WithWhen<
+	N['rest'] extends readonly []
+		? (search?: SParams) => string
+		: HasKeep<N['rest']> extends true
+			? ((search?: SParams) => string) & PropsFromChildren<N['rest']>
+			: PropsFromChildren<N['rest']>
+>
+
+type SlotResult<Rest extends readonly PathDef[]> = WithWhen<
+	Rest extends readonly []
+		? (search?: SParams) => string
+		: HasKeep<Rest> extends true
+			? ((search?: SParams) => string) & PropsFromChildren<Rest>
+			: PropsFromChildren<Rest>
+>
+
+type RouteFromSlot<I extends Slot<any, any>> = (param: Segment) => SlotResult<I['rest']>
+
+type WrapArg<W extends Wrap<any, any, any>> = Parameters<W['when']>[0]
+
+type WrapResult<Rest extends readonly PathDef[]> = WithWhen<
+	HasKeep<Rest> extends true
+		? ((search?: SParams) => string) & PropsFromChildren<Rest>
+		: PropsFromChildren<Rest>
+>
+
+type RouteFromWrap<W extends Wrap<any, any, any>> = (arg: WrapArg<W>) => WrapResult<W['rest']>
+
+type RoutesFromDefs<Defs extends readonly PathDef[]> = WithWhen<
+	HasKeep<Defs> extends true
+		? ((search?: SParams) => string) & PropsFromChildren<Defs>
+		: PropsFromChildren<Defs>
+>
+
+declare const keep: () => Keep;
+declare const path: <const Name extends string, const Rest extends readonly PathDef[] = readonly []>(name: Name, rest?: Rest) => Path<Name, Rest>;
+declare const slot: <const Name extends string, const Rest extends readonly PathDef[] = readonly []>(name: Name, rest?: Rest) => Slot<Name, Rest>;
+declare const wrap: <const Name extends string, const Rest extends readonly PathDef[] = readonly [], Args = unknown>(name: Name, when: (args: Args) => boolean, rest?: Rest) => Wrap<Name, Rest, Args>;
+declare function root<const Defs extends readonly PathDef[]>(defs: Defs): RoutesFromDefs<Defs>;
+
+export { keep, path, root, slot, wrap };

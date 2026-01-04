@@ -1,0 +1,77 @@
+{
+	"name": "route-sprout",
+	"version": "1.0.0",
+	"description": "A tiny, cute DSL that grows type-safe, composable URL builders from a declarative route tree.",
+	"author": "Piotr Siatkowski <p.siatkowski@gmail.com>",
+	"license": "MIT",
+	"keywords": [
+		"routing",
+		"tiny",
+		"api",
+		"tree",
+		"DSL",
+		"typed",
+		"no-boilerplate",
+		"flexibility"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git://github.com/PiotrSiatkowski/route-sprout.git",
+		"web": "https://github.com/PiotrSiatkowski/route-sprout"
+	},
+	"bugs": {
+		"url": "https://github.com/PiotrSiatkowski/route-sprout/issues"
+	},
+	"sideEffects": false,
+	"type": "module",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"files": [
+		"dist/**/*"
+	],
+	"exports": {
+		".": {
+			"types": "./dist/dsl.d.ts",
+			"import": "./dist/api.js",
+			"require": "./dist/api.cjs",
+			"default": "./dist/api.js"
+		},
+		"./dialect-path": {
+			"types": "./dist/dsl.d.ts",
+			"import": "./dist/dialect-path.js",
+			"require": "./dist/dialect-path.cjs",
+			"default": "./dist/dialect-path.js"
+		},
+		"./dialect-node": {
+			"types": "./dist/dsl.d.ts",
+			"import": "./dist/dialect-node.js",
+			"require": "./dist/dialect-node.cjs",
+			"default": "./dist/dialect-node.js"
+		},
+		"./dialect-step": {
+			"types": "./dist/dsl.d.ts",
+			"import": "./dist/dialect-step.js",
+			"require": "./dist/dialect-step.cjs",
+			"default": "./dist/dialect-step.js"
+		},
+		"./dialect-tree": {
+			"types": "./dist/dsl.d.ts",
+			"import": "./dist/dialect-tree.js",
+			"require": "./dist/dialect-tree.cjs",
+			"default": "./dist/dialect-tree.js"
+		}
+	},
+	"scripts": {
+		"build": "vitest && tsup src/api.ts --format esm,cjs --dts --clean --sourcemap --minify",
+		"publish": "npm publish --access public",
+		"test": "vitest"
+	},
+	"devDependencies": {
+		"prettier": "^3.5.3",
+		"tsup": "^8.5.0",
+		"typescript": "5.8.3",
+		"vitest": "^4.0.16"
+	},
+	"private": false
+}
