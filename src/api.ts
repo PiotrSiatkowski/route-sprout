@@ -1,19 +1,30 @@
 import {
-	KebabToCamel,
+	Absent,
+	When,
 	Keep,
 	Path,
 	PathDef,
 	RoutesFromDefs,
 	SParams,
 	Segment,
+	SelectValue,
 	Slot,
 	SlotDef,
+	ToCamelWhen,
 	Wrap,
+	WrapChild,
 } from './dsl'
 
 // ---------- Transform helpers ------------
-const toCamel = (s: string) => s.replace(/-([a-zA-Z0-9])/g, (_, c) => c.toUpperCase())
-type KeyFromSeg<S extends string> = KebabToCamel<S>
+const toCamel = (s: string) =>
+	s
+		.replace(/^-+/, '')
+		.replace(/-+$/, '')
+		.replace(/^_+/, '')
+		.replace(/_+$/, '')
+		.replace(/-([a-zA-Z0-9])/g, (_, c) => c.toUpperWhen())
+		.replace(/_([a-zA-Z0-9])/g, (_, c) => c.toUpperWhen())
+type KeyFromSeg<S extends string> = ToCamelWhen<S>
 
 // ---------- DSL helpers (typed) ----------
 export const keep = (): Keep => ({ kind: 'keep' })
@@ -46,13 +57,14 @@ export const slot = <
 
 export const wrap = <
 	const Name extends string,
-	const Rest extends readonly PathDef[] = readonly [],
+	const Rest extends readonly WrapChild[] = readonly [],
 	Args = unknown,
+	Vals extends SelectValue = SelectValue
 >(
 	name: Name,
-	when: (args: Args) => boolean,
+	when: (args: Args) => Vals,
 	rest?: Rest
-): Wrap<Name, KeyFromSeg<Name>, Rest, Args> => ({
+): Wrap<Name, KeyFromSeg<Name>, Rest, Args, Vals> => ({
 	kind: 'wrap',
 	name: assertValidName('wrap', name),
 	uuid: toCamel(name) as KeyFromSeg<Name>,
@@ -60,7 +72,16 @@ export const wrap = <
 	rest: (rest ?? []) as Rest,
 })
 
-const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/
+export const when = <
+	const Vals extends string | true,
+	const Rest extends readonly PathDef[] = readonly [],
+>(vals: Vals, rest?: Rest): When<Vals, Rest> => ({
+	kind: "when",
+	vals,
+	rest: (rest ?? []) as Rest,
+});
+
+const IDENT = /^[A-Za-z_-][A-Za-z0-9_-]*$/
 
 function assertValidName<const Name extends string>(
 	kind: 'path' | 'slot' | 'wrap',
@@ -79,6 +100,19 @@ function assertValidName<const Name extends string>(
 	return name.trim() as Name
 }
 
+const isAbsent = (v: unknown): v is Absent => v === false || v == null;
+
+function splitWrapChildren(rest: readonly WrapChild[]) {
+	const whens: When<any, readonly PathDef[]>[] = [];
+	const fallback: PathDef[] = [];
+
+	for (const r of rest) {
+		if ((r as any).kind === "caze") whens.push(r as any);
+		else fallback.push(r as any); // PathDef
+	}
+	return { whens, fallback };
+}
+
 // ---------- Runtime implementation ----------
 const url = (path: Segment[], search?: SParams) =>
 	`/${path.filter(Boolean).join('/').replace('/\/{2,}/g', '/')}${search ? `?${search}` : ''}`
@@ -93,8 +127,8 @@ function buildPath(prefix: Segment[], def: SlotDef) {
 	const allPath =
 		def.kind === 'slot' || def.kind === 'wrap'
 			? prefix
-			: def.uuid
-				? [...prefix, def.uuid]
+			: def.name
+				? [...prefix, def.name]
 				: prefix
 
 	// If there is a keep(), the path itself is callable and acts as "keep"
@@ -127,7 +161,7 @@ function buildPath(prefix: Segment[], def: SlotDef) {
 			}
 		} else if (child.kind === 'path') {
 			if (child.rest.length === 0) {
-				const leafPath = [...allPath, child.uuid]
+				const leafPath = [...allPath, child.name]
 				const fn: any = (search?: SParams) => url(leafPath, search)
 				target[child.uuid] = attachWhenAndJoin(fn, leafPath, [])
 			} else {
@@ -135,18 +169,20 @@ function buildPath(prefix: Segment[], def: SlotDef) {
 			}
 		} else if (child.kind === 'wrap') {
 			target[child.uuid] = (arg: unknown) => {
-				const enabled = child.when(arg)
-				const wrapped = enabled ? [...allPath, child.uuid] : allPath
-				const subTree = buildPath(wrapped, child as any)
+				const selection =
+					(typeof arg === "string" || typeof arg === "number" || arg === false || arg == null)
+						? (arg as SelectValue)
+						: (child.select as any)(arg);
 
-				return Object.assign(
-					// if wrap has keep(), it becomes callable at that point
-					hasKeep(child as any)
-						? (search?: SParams) => url(wrapped, search)
-						: Object.create(null),
-					subTree
-				)
-			}
+				const { whens, fallback } = splitWrapChildren(child.rest);
+				const matched = whens.find((c) => Object.is(c.vals, selection));
+				const chosen: readonly Wrap[] = isAbsent(selection) ? fallback : (matched?.rest ?? fallback);
+
+				const nextPath = isAbsent(selection) ? allPath : [...allPath, selection as Segment];
+
+				// synthetic path with empty name so we only change the prefix:
+				return buildPath(nextPath, { kind: "path", name: "" as any, rest: chosen as any });
+			};
 		}
 	}
 

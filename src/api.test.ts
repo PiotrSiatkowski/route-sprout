@@ -628,7 +628,6 @@ describe('general edge cases', () => {
 		'{', // brackets
 		'}', // brackets
 		'0abc', // leading digit (not valid identifier)
-		'-abc', // leading hyphen
 	]
 
 	function expectThrowsName(fn: () => any) {
@@ -674,7 +673,7 @@ describe('general edge cases', () => {
 				// If build succeeded, try to force access
 				// (this is what an attacker would try)
 				// eslint-disable-next-line @typescript-eslint/no-unused-expressions
-				Api.__proto__?.polluted?.()
+				Api.proto?.polluted?.()
 			} catch {
 				// expected in strict validation mode
 			}
@@ -783,6 +782,25 @@ describe('general edge cases', () => {
 				expect(() => slot(v, [keep()])).toThrow()
 				expect(() => wrap(v, () => true, [keep()])).toThrow()
 			}
+		})
+	})
+
+	describe('changes case of route segments', () => {
+		it('should transform hyphens to camel case', () => {
+			const Api = root([path('-hyphen-case-')])
+			expect(Api.hyphenCase()).toBe('/-hyphen-case-')
+		})
+
+		it('should transform underscores to camel case', () => {
+			const Api = root([path('_hyphen_case_')])
+			expect(Api.hyphenCase()).toBe('/_hyphen_case_')
+		})
+	})
+
+	describe('auto merges path and wrap segments of the same name', () => {
+		it('should transform hyphens to camel case', () => {
+			const Api = root([path('admin', [keep(), path('old')]), wrap('admin', () => true, [path('new')])])
+			expect(Api.admin()).toBe('/-hyphen-case-')
 		})
 	})
 })
