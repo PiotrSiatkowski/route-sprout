@@ -1,1 +1,1 @@
-export { root, path, slot, keep, wrap } from './api'
+export { root, path, slot, keep, wrap, pick } from './api'

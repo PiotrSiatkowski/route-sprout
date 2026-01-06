@@ -1,6 +1,6 @@
 import { describe, it, expectTypeOf, expect } from 'vitest'
 import { SParams } from './dsl'
-import { root, path, slot, keep, wrap } from './api'
+import { root, path, slot, keep, wrap, pick } from './api'
 
 // Helper to build params consistently
 const qs = (pairs: Record<string, string>): URLSearchParams => new URLSearchParams(pairs)
@@ -21,9 +21,9 @@ describe('DSL routing builder', () => {
 		])
 
 		// slot leaf: catalog.id("x") returns (search?) => url
-		expect(Api.catalog.id('some-id')()).toBe('/catalog/some-id')
-		expect(Api.catalog.id('some-id')('a=1')).toBe('/catalog/some-id?a=1')
-		expect(Api.catalog.id('some-id')(qs({ a: '1' }))).toBe('/catalog/some-id?a=1')
+		expect(Api.catalog.$id('some-id')()).toBe('/catalog/some-id')
+		expect(Api.catalog.$id('some-id')('a=1')).toBe('/catalog/some-id?a=1')
+		expect(Api.catalog.$id('some-id')(qs({ a: '1' }))).toBe('/catalog/some-id?a=1')
 	})
 
 	it("does not add an extra 'id' segment for nested slot routes (regression test)", () => {
@@ -31,7 +31,7 @@ describe('DSL routing builder', () => {
 
 		// ✅ expected: /catalog/books/<id>/chapter
 		// ❌ old bug:  /catalog/books/<id>/id/chapter
-		expect(Api.catalog.books.id('abc').chapter()).toBe('/catalog/books/abc/chapter')
+		expect(Api.catalog.books.$id('abc').chapter()).toBe('/catalog/books/abc/chapter')
 	})
 
 	describe('path behavior matrix', () => {
@@ -61,7 +61,7 @@ describe('DSL routing builder', () => {
 			expect(Api.orders('a=1')).toBe('/orders?a=1')
 
 			expect(Api.orders.export()).toBe('/orders/export')
-			expect(Api.orders.id('77')()).toBe('/orders/77')
+			expect(Api.orders.$id('77')()).toBe('/orders/77')
 		})
 
 		it('path nested tree creates correct paths', () => {
@@ -75,7 +75,7 @@ describe('DSL routing builder', () => {
 		it('slot leaf: (param) => (search?) => url', () => {
 			const Api = root([path('x', [slot('id')])])
 
-			const f = Api.x.id('10')
+			const f = Api.x.$id('10')
 			expect(typeof f).toBe('function')
 			expect(f()).toBe('/x/10')
 			expect(f('p=1')).toBe('/x/10?p=1')
@@ -85,7 +85,7 @@ describe('DSL routing builder', () => {
 		it('slot non-leaf without keep: (param) => object with children (not callable)', () => {
 			const Api = root([path('jobs', [slot('id', [path('activities'), path('statuses')])])])
 
-			const sub = Api.jobs.id('abc')
+			const sub = Api.jobs.$id('abc')
 			expect(typeof sub).toBe('object')
 			expect(sub.activities()).toBe('/jobs/abc/activities')
 			expect(sub.statuses()).toBe('/jobs/abc/statuses')
@@ -94,7 +94,7 @@ describe('DSL routing builder', () => {
 		it('slot non-leaf WITH keep: (param) => callable + children', () => {
 			const Api = root([path('jobs', [slot('id', [keep(), path('activities')])])])
 
-			const sub = Api.jobs.id('abc')
+			const sub = Api.jobs.$id('abc')
 
 			expect(typeof sub).toBe('function')
 			expect(sub()).toBe('/jobs/abc')
@@ -106,7 +106,7 @@ describe('DSL routing builder', () => {
 		it('slot nested under path nested produces correct path', () => {
 			const Api = root([path('catalog', [path('images', [slot('id', [path('foo')])])])])
 
-			expect(Api.catalog.images.id(123).foo()).toBe('/catalog/images/123/foo')
+			expect(Api.catalog.images.$id(123).foo()).toBe('/catalog/images/123/foo')
 		})
 	})
 
@@ -129,7 +129,7 @@ describe('DSL routing builder', () => {
 
 		it('works for slot leaf call style: id(param)(search)', () => {
 			const Api = root([path('x', [slot('id')])])
-			expect(Api.x.id('10')('a=1')).toBe('/x/10?a=1')
+			expect(Api.x.$id('10')('a=1')).toBe('/x/10?a=1')
 		})
 	})
 
@@ -141,14 +141,14 @@ describe('DSL routing builder', () => {
 
 		it('supports numeric Segment in slot param', () => {
 			const Api = root([path('x', [slot('id')])])
-			expect(Api.x.id(42)()).toBe('/x/42')
+			expect(Api.x.$id(42)()).toBe('/x/42')
 		})
 
 		it('deep mix of callable paths + slots behaves correctly', () => {
 			const Api = root([path('orders', [keep(), slot('id', [keep(), path('export')])])])
 
 			expect(Api.orders()).toBe('/orders')
-			const sub = Api.orders.id('7')
+			const sub = Api.orders.$id('7')
 			expect(sub()).toBe('/orders/7')
 			expect(sub.export()).toBe('/orders/7/export')
 		})
@@ -163,7 +163,7 @@ describe('DSL type inference', () => {
 		expectTypeOf(Api.jobs).toBeCallableWith(undefined as unknown as SParams | undefined)
 
 		// id(param) returns object (non-callable here, since slot rest has no keep)
-		const sub = Api.jobs.id('x')
+		const sub = Api.jobs.$id('x')
 		expectTypeOf(sub).toHaveProperty('activities')
 		expectTypeOf(sub.activities).toBeFunction()
 	})
@@ -171,8 +171,8 @@ describe('DSL type inference', () => {
 	it('infers slot leaf as curried function', () => {
 		const Api = root([path('catalog', [slot('id')])])
 
-		expectTypeOf(Api.catalog.id).toBeFunction()
-		const f = Api.catalog.id('abc')
+		expectTypeOf(Api.catalog.$id).toBeFunction()
+		const f = Api.catalog.$id('abc')
 		expectTypeOf(f).toBeCallableWith(undefined as unknown as SParams | undefined)
 	})
 })
@@ -187,9 +187,9 @@ describe('wrap utility (DSL wrapper path)', () => {
 			]),
 		])
 
-		expect(Api.core.admin({ isAdmin: true }).jobs()).toBe('/core/admin/jobs')
-		expect(Api.core.admin({ isAdmin: false }).jobs()).toBe('/core/jobs')
-		expect(Api.core.admin(null).jobs()).toBe('/core/jobs')
+		expect(Api.core.$admin({ isAdmin: true }).jobs()).toBe('/core/admin/jobs')
+		expect(Api.core.$admin({ isAdmin: false }).jobs()).toBe('/core/jobs')
+		expect(Api.core.$admin(null).jobs()).toBe('/core/jobs')
 	})
 
 	it('wrap can be used in the middle of the path (nested under paths/slots)', () => {
@@ -203,11 +203,11 @@ describe('wrap utility (DSL wrapper path)', () => {
 			]),
 		])
 
-		expect(Api.catalog.books.id('x').admin({ isAdmin: true }).chapter()).toBe(
+		expect(Api.catalog.books.$id('x').$admin({ isAdmin: true }).chapter()).toBe(
 			'/catalog/books/x/admin/chapter'
 		)
 
-		expect(Api.catalog.books.id('x').admin({ isAdmin: false }).chapter()).toBe(
+		expect(Api.catalog.books.$id('x').$admin({ isAdmin: false }).chapter()).toBe(
 			'/catalog/books/x/chapter'
 		)
 	})
@@ -222,7 +222,7 @@ describe('wrap utility (DSL wrapper path)', () => {
 			]),
 		])
 
-		const disabled = Api.core.admin({ isAdmin: false })
+		const disabled = Api.core.$admin({ isAdmin: false })
 		expect(disabled.jobs()).toBe('/core/jobs')
 		expect(disabled.users()).toBe('/core/users')
 	})
@@ -237,12 +237,12 @@ describe('wrap utility (DSL wrapper path)', () => {
 
 		expect(Api.core()).toBe('/core')
 
-		const adminOn = Api.core.admin({ isAdmin: true })
+		const adminOn = Api.core.$admin({ isAdmin: true })
 		expect(typeof adminOn).toBe('function')
 		expect(adminOn()).toBe('/core/admin')
 		expect(adminOn.jobs()).toBe('/core/admin/jobs')
 
-		const adminOff = Api.core.admin({ isAdmin: false })
+		const adminOff = Api.core.$admin({ isAdmin: false })
 		// when disabled, should act like passthrough to /core (callable because core has keep)
 		expect(typeof adminOff).toBe('function')
 		expect(adminOff()).toBe('/core')
@@ -254,8 +254,8 @@ describe('wrap utility (DSL wrapper path)', () => {
 			path('core', [wrap('admin', (u: User) => !!u?.isAdmin, [path('jobs', [keep()])])]),
 		])
 
-		expect(Api.core.admin({ isAdmin: true }).jobs('a=1')).toBe('/core/admin/jobs?a=1')
-		expect(Api.core.admin({ isAdmin: false }).jobs('a=1')).toBe('/core/jobs?a=1')
+		expect(Api.core.$admin({ isAdmin: true }).jobs('a=1')).toBe('/core/admin/jobs?a=1')
+		expect(Api.core.$admin({ isAdmin: false }).jobs('a=1')).toBe('/core/jobs?a=1')
 	})
 })
 
@@ -284,12 +284,14 @@ describe('when utility (runtime method)', () => {
 		const Api = root([path('jobs', [keep(), slot('id', [path('activities', [keep()])])])])
 
 		// Insert after /jobs/<id>
-		expect(Api.jobs.id('123').$when(true, 'preview').activities()).toBe(
+		expect(Api.jobs.$id('123').$when(true, 'preview').activities()).toBe(
 			'/jobs/123/preview/activities'
 		)
 
 		// Disabled -> normal path
-		expect(Api.jobs.id('123').$when(false, 'preview').activities()).toBe('/jobs/123/activities')
+		expect(Api.jobs.$id('123').$when(false, 'preview').activities()).toBe(
+			'/jobs/123/activities'
+		)
 	})
 
 	it('when does NOT mutate the original subtree (important for DX)', () => {
@@ -336,12 +338,12 @@ describe('when utility (runtime method)', () => {
 		])
 
 		// enabled wrap, then insert v2 after /core/admin
-		expect(Api.core.admin({ isAdmin: true }).$when(true, 'v2').jobs()).toBe(
+		expect(Api.core.$admin({ isAdmin: true }).$when(true, 'v2').jobs()).toBe(
 			'/core/admin/v2/jobs'
 		)
 
 		// disabled wrap, then insert v2 after /core
-		expect(Api.core.admin({ isAdmin: false }).$when(true, 'v2').jobs()).toBe('/core/v2/jobs')
+		expect(Api.core.$admin({ isAdmin: false }).$when(true, 'v2').jobs()).toBe('/core/v2/jobs')
 	})
 })
 
@@ -368,7 +370,7 @@ describe('join utility (runtime method)', () => {
 		const Api = root([path('jobs', [keep(), slot('id', [path('activities', [keep()])])])])
 
 		// Insert after /jobs/<id>
-		expect(Api.jobs.id('123').$join('preview').activities()).toBe(
+		expect(Api.jobs.$id('123').$join('preview').activities()).toBe(
 			'/jobs/123/preview/activities'
 		)
 	})
@@ -413,10 +415,10 @@ describe('join utility (runtime method)', () => {
 		])
 
 		// enabled wrap, then insert v2 after /core/admin
-		expect(Api.core.admin({ isAdmin: true }).$join('v2').jobs()).toBe('/core/admin/v2/jobs')
+		expect(Api.core.$admin({ isAdmin: true }).$join('v2').jobs()).toBe('/core/admin/v2/jobs')
 
 		// disabled wrap, then insert v2 after /core
-		expect(Api.core.admin({ isAdmin: false }).$join('v2').jobs()).toBe('/core/v2/jobs')
+		expect(Api.core.$admin({ isAdmin: false }).$join('v2').jobs()).toBe('/core/v2/jobs')
 	})
 })
 
@@ -481,7 +483,7 @@ describe('wrap() edge cases & regressions', () => {
 			path('core', [wrap('admin', (u: User) => !!u?.isAdmin, [path('jobs', [keep()])])]),
 		])
 
-		expect(Api.core.admin({ isAdmin: true }).jobs()).toBe('/core/admin/jobs')
+		expect(Api.core.$admin({ isAdmin: true }).jobs()).toBe('/core/admin/jobs')
 	})
 
 	it('wrap disabled is passthrough (no double slashes, no missing segments)', () => {
@@ -491,8 +493,8 @@ describe('wrap() edge cases & regressions', () => {
 			]),
 		])
 
-		expect(Api.core.admin({ isAdmin: false }).jobs()).toBe('/core/jobs')
-		expect(Api.core.admin(null).jobs()).toBe('/core/jobs')
+		expect(Api.core.$admin({ isAdmin: false }).jobs()).toBe('/core/jobs')
+		expect(Api.core.$admin(null).jobs()).toBe('/core/jobs')
 	})
 
 	it('wrap + when composition keeps clean slashes and correct order', () => {
@@ -501,12 +503,12 @@ describe('wrap() edge cases & regressions', () => {
 		])
 
 		// enabled wrap then when inserts v2
-		expect(Api.core.admin({ isAdmin: true }).$when(true, 'v2').jobs()).toBe(
+		expect(Api.core.$admin({ isAdmin: true }).$when(true, 'v2').jobs()).toBe(
 			'/core/admin/v2/jobs'
 		)
 
 		// disabled wrap then when inserts v2 at /core
-		expect(Api.core.admin({ isAdmin: false }).$when(true, 'v2').jobs()).toBe('/core/v2/jobs')
+		expect(Api.core.$admin({ isAdmin: false }).$when(true, 'v2').jobs()).toBe('/core/v2/jobs')
 	})
 
 	it('wrap in the middle + search params still attach last', () => {
@@ -519,11 +521,11 @@ describe('wrap() edge cases & regressions', () => {
 			]),
 		])
 
-		expect(Api.jobs.id('123').admin({ isAdmin: true }).activities('q=1')).toBe(
+		expect(Api.jobs.$id('123').$admin({ isAdmin: true }).activities('q=1')).toBe(
 			'/jobs/123/admin/activities?q=1'
 		)
 
-		expect(Api.jobs.id('123').admin({ isAdmin: false }).activities('q=1')).toBe(
+		expect(Api.jobs.$id('123').$admin({ isAdmin: false }).activities('q=1')).toBe(
 			'/jobs/123/activities?q=1'
 		)
 	})
@@ -534,15 +536,15 @@ describe('wrap() edge cases & regressions', () => {
 		])
 
 		const base = Api.core
-		const a = base.admin({ isAdmin: true })
-		const b = base.admin({ isAdmin: false })
+		const a = base.$admin({ isAdmin: true })
+		const b = base.$admin({ isAdmin: false })
 
 		expect(a.jobs()).toBe('/core/admin/jobs')
 		expect(b.jobs()).toBe('/core/jobs')
 
 		// ensure base is still usable and unchanged
-		expect(base.admin({ isAdmin: false }).jobs()).toBe('/core/jobs')
-		expect(base.admin({ isAdmin: true }).jobs()).toBe('/core/admin/jobs')
+		expect(base.$admin({ isAdmin: false }).jobs()).toBe('/core/jobs')
+		expect(base.$admin({ isAdmin: true }).jobs()).toBe('/core/admin/jobs')
 	})
 })
 
@@ -552,7 +554,7 @@ describe('slashes & normalization across slots + when/wrap', () => {
 	it('does not create // when inserting segments after slot param', () => {
 		const Api = root([path('jobs', [keep(), slot('id', [path('activities', [keep()])])])])
 
-		expect(Api.jobs.id('123').$when(true, ['', 'admin', '']).activities()).toBe(
+		expect(Api.jobs.$id('123').$when(true, ['', 'admin', '']).activities()).toBe(
 			'/jobs/123/admin/activities'
 		)
 	})
@@ -569,13 +571,13 @@ describe('slashes & normalization across slots + when/wrap', () => {
 			]),
 		])
 
-		expect(Api.core.jobs.id('1').admin({ isAdmin: true }).$when(true, 'v2').activities()).toBe(
-			'/core/jobs/1/admin/v2/activities'
-		)
+		expect(
+			Api.core.jobs.$id('1').$admin({ isAdmin: true }).$when(true, 'v2').activities()
+		).toBe('/core/jobs/1/admin/v2/activities')
 
-		expect(Api.core.jobs.id('1').admin({ isAdmin: false }).$when(true, 'v2').activities()).toBe(
-			'/core/jobs/1/v2/activities'
-		)
+		expect(
+			Api.core.jobs.$id('1').$admin({ isAdmin: false }).$when(true, 'v2').activities()
+		).toBe('/core/jobs/1/v2/activities')
 	})
 })
 
@@ -589,10 +591,10 @@ describe('general edge cases', () => {
 	it('can join and when after slot', () => {
 		const Api = root([slot('id')])
 
-		expect(Api.id('id').$when(true, ['a', 'b'])()).toBe('/id/a/b')
-		expect(Api.id('id').$when(true, 'a')()).toBe('/id/a')
-		expect(Api.id('id').$join(['a', 'b'])()).toBe('/id/a/b')
-		expect(Api.id('id').$join('a')()).toBe('/id/a')
+		expect(Api.$id('id').$when(true, ['a', 'b'])()).toBe('/id/a/b')
+		expect(Api.$id('id').$when(true, 'a')()).toBe('/id/a')
+		expect(Api.$id('id').$join(['a', 'b'])()).toBe('/id/a/b')
+		expect(Api.$id('id').$join('a')()).toBe('/id/a')
 	})
 
 	it('accepts join and when on keep', () => {
@@ -628,7 +630,6 @@ describe('general edge cases', () => {
 		'{', // brackets
 		'}', // brackets
 		'0abc', // leading digit (not valid identifier)
-		'-abc', // leading hyphen
 	]
 
 	function expectThrowsName(fn: () => any) {
@@ -674,7 +675,7 @@ describe('general edge cases', () => {
 				// If build succeeded, try to force access
 				// (this is what an attacker would try)
 				// eslint-disable-next-line @typescript-eslint/no-unused-expressions
-				Api.__proto__?.polluted?.()
+				Api.proto?.polluted?.()
 			} catch {
 				// expected in strict validation mode
 			}
@@ -764,7 +765,7 @@ describe('general edge cases', () => {
 		it('should reject or safely handle extremely long names', () => {
 			const long = 'a'.repeat(10_000)
 
-			// Ideally your validation rejects these.
+			// Ideally, your validation rejects these.
 			// If you allow them, it still must not crash/hang.
 			try {
 				const Api = root([path(long, [keep()])])
@@ -775,7 +776,7 @@ describe('general edge cases', () => {
 		})
 
 		it('should reject non-string names passed unsafely (runtime)', () => {
-			// TS should prevent this, but runtime might still get weird input.
+			// TS should prevent this, but runtime might still get unique input.
 			const bad: any[] = [null, undefined, 123, {}, [], () => 'x']
 
 			for (const v of bad) {
@@ -783,6 +784,219 @@ describe('general edge cases', () => {
 				expect(() => slot(v, [keep()])).toThrow()
 				expect(() => wrap(v, () => true, [keep()])).toThrow()
 			}
+		})
+	})
+
+	describe('changes case of route segments', () => {
+		it('should transform hyphens to camel case', () => {
+			const Api = root([path('-hyphen-case-')])
+			expect(Api.hyphenCase()).toBe('/-hyphen-case-')
+		})
+
+		it('should transform underscores to camel case', () => {
+			const Api = root([path('_hyphen_case_')])
+			expect(Api.hyphenCase()).toBe('/_hyphen_case_')
+		})
+	})
+
+	describe('pick()', () => {
+		it('selects a 1-segment prefix and applies shared subtree', () => {
+			const Api = root([
+				path('core', [
+					pick('mode', { admin: ['admin'], user: [], partner: ['partner', 'v2'] }, [
+						path('jobs', [keep()]),
+						path('customers', [slot('id', [keep()])]),
+					]),
+				]),
+			])
+
+			expect(Api.core.$mode('admin').jobs()).toBe('/core/admin/jobs')
+			expect(Api.core.$mode('admin').customers.$id(5)()).toBe('/core/admin/customers/5')
+		})
+
+		it('selects empty prefix ([]) and does not add extra slashes', () => {
+			const Api = root([
+				path('core', [
+					pick('mode', { admin: ['admin'], user: [] }, [path('jobs', [keep()])]),
+				]),
+			])
+
+			expect(Api.core.$mode('user').jobs()).toBe('/core/jobs')
+		})
+
+		it('supports multi-segment prefix', () => {
+			const Api = root([
+				path('core', [
+					pick('mode', { partner: ['partner', 'v2'] }, [path('jobs', [keep()])]),
+				]),
+			])
+
+			expect(Api.core.$mode('partner').jobs()).toBe('/core/partner/v2/jobs')
+		})
+
+		it('throws on unknown selection value', () => {
+			const Api = root([
+				path('core', [
+					pick('mode', { admin: ['admin'], user: [] }, [path('jobs', [keep()])]),
+				]),
+			])
+
+			// @ts-expect-error unknown mode must be rejected by TS
+			expect(() => Api.core.$mode('nope')).toThrow(/unknown/i)
+		})
+
+		it('shared subtree is not duplicated (changing one path affects all modes)', () => {
+			const Api = root([
+				path('core', [
+					pick('mode', { admin: ['admin'], user: [] }, [
+						path('jobs', [path('stats', [keep()])]),
+					]),
+				]),
+			])
+
+			expect(Api.core.$mode('admin').jobs.stats()).toBe('/core/admin/jobs/stats')
+			expect(Api.core.$mode('user').jobs.stats()).toBe('/core/jobs/stats')
+		})
+
+		it('pick works alongside sibling paths', () => {
+			const Api = root([
+				path('core', [
+					path('health', [keep()]),
+					pick('mode', { admin: ['admin'], user: [] }, [path('jobs', [keep()])]),
+				]),
+			])
+
+			expect(Api.core.health()).toBe('/core/health')
+			expect(Api.core.$mode('admin').jobs()).toBe('/core/admin/jobs')
+		})
+
+		it('pick supports deeper nesting (pick under a path)', () => {
+			const Api = root([
+				path('api', [
+					path('core', [
+						pick('mode', { admin: ['admin'], user: [] }, [path('jobs', [keep()])]),
+					]),
+				]),
+			])
+
+			expect(Api.api.core.$mode('admin').jobs()).toBe('/api/core/admin/jobs')
+			expect(Api.api.core.$mode('user').jobs()).toBe('/api/core/jobs')
+		})
+
+		it('pick allows slot usage in shared subtree', () => {
+			const Api = root([
+				path('core', [
+					pick('mode', { admin: ['admin'], user: [] }, [
+						path('customers', [slot('id', [path('details', [keep()])])]),
+					]),
+				]),
+			])
+
+			expect(Api.core.$mode('admin').customers.$id(123).details()).toBe(
+				'/core/admin/customers/123/details'
+			)
+			expect(Api.core.$mode('user').customers.$id(123).details()).toBe(
+				'/core/customers/123/details'
+			)
+		})
+
+		it('pick prefix is inserted before subtree, not after', () => {
+			const Api = root([
+				path('core', [
+					path('x', [
+						pick('mode', { admin: ['admin'], user: [] }, [path('jobs', [keep()])]),
+					]),
+				]),
+			])
+
+			expect(Api.core.x.$mode('admin').jobs()).toBe('/core/x/admin/jobs')
+		})
+
+		it('pick does not leak keys from other branches in types (type test)', () => {
+			const Api = root([
+				path('core', [
+					pick('mode', { admin: ['admin'], user: [] }, [path('jobs', [keep()])]),
+				]),
+			])
+
+			// runtime sanity
+			expect(Api.core.$mode('admin').jobs()).toBe('/core/admin/jobs')
+
+			// type-only expectations (uncomment if you run typecheck on tests)
+			// @ts-expect-error unknown mode must be rejected by TS
+			expect(() => Api.core.$mode('nope')).toThrow(/unknown/i)
+
+			// @ts-expect-error pick key should be $mode, not mode
+			Api.core.mode
+		})
+	})
+
+	describe("coexistence: path('admin') + $admin", () => {
+		it('admin path and $admin(true) can generate the same URL (simple leaf)', () => {
+			const Api = root([
+				path('core', [
+					// static admin tree
+					path('admin', [path('jobs', [keep()])]),
+
+					// conditional admin prefix (exposed as .$admin)
+					wrap('admin', (enabled: boolean) => enabled, [path('jobs', [keep()])]),
+				]),
+			])
+
+			expect(Api.core.admin.jobs()).toBe('/core/admin/jobs')
+			expect(Api.core.$admin(true).jobs()).toBe('/core/admin/jobs')
+			expect(Api.core.$admin(false).jobs()).toBe('/core/jobs')
+		})
+
+		it('admin path and $admin(true) can generate the same URL (slot + nested leaf)', () => {
+			const Api = root([
+				path('core', [
+					path('admin', [path('customers', [slot('id', [path('details', [keep()])])])]),
+
+					wrap('admin', (enabled: boolean) => enabled, [
+						path('customers', [slot('id', [path('details', [keep()])])]),
+					]),
+				]),
+			])
+
+			expect(Api.core.admin.customers.$id(7).details()).toBe(
+				'/core/admin/customers/7/details'
+			)
+			expect(Api.core.$admin(true).customers.$id(7).details()).toBe(
+				'/core/admin/customers/7/details'
+			) // same
+			expect(Api.core.$admin(false).customers.$id(7).details()).toBe(
+				'/core/customers/7/details'
+			) // no /admin
+		})
+
+		it('both admin and $admin are present on the same parent object (no key override)', () => {
+			const Api = root([
+				path('core', [
+					path('admin', [path('jobs', [keep()])]),
+					wrap('admin', (enabled: boolean) => enabled, [path('jobs', [keep()])]),
+				]),
+			])
+
+			// Both exist and are callable in their own way
+			expect(typeof Api.core.admin).toBe('object')
+			expect(typeof Api.core.$admin).toBe('function')
+
+			expect(Api.core.admin.jobs()).toBe('/core/admin/jobs')
+			expect(Api.core.$admin(true).jobs()).toBe('/core/admin/jobs')
+		})
+
+		it("explicitly documents the 'double admin' composition (if someone chains them)", () => {
+			const Api = root([
+				path('core', [
+					path('admin', [
+						wrap('admin', (enabled: boolean) => enabled, [path('jobs', [keep()])]),
+						path('jobs', [keep()]),
+					]),
+				]),
+			])
+
+			expect(Api.core.admin.$admin(true).jobs()).toBe('/core/admin/admin/jobs')
 		})
 	})
 })

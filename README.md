@@ -41,8 +41,8 @@ const Api = root([
 
 Api.invoices();                          // "/invoices"
 Api.invoices("page=1");                  // "/invoices?page=1"
-Api.invoices.id("abc")("a=1");           // "/invoices/abc?a=1"
-Api.invoices.id("abc").customers();      // "/invoices/abc/customers"
+Api.invoices.$id("abc")("a=1");           // "/invoices/abc?a=1"
+Api.invoices.$id("abc").customers();      // "/invoices/abc/customers"
 ```
 
 ---
@@ -69,7 +69,7 @@ When you have lots of endpoints, you usually end up with:
 This DSL gives you:
 
 - a single, declarative source of truth
-- fluent, discoverable usage (`Api.invoices.id("x").customers()`)
+- fluent, discoverable usage (`Api.invoices.$id("x").customers()`)
 - TypeScript autocomplete and type checking from **usage**, not comments
 
 ---
@@ -111,7 +111,7 @@ The `name` is only the **property key**. It is **not** inserted into the path.
 
 ```ts
 path("invoices", [slot("id")]);
-// Api.invoices.id("abc")() -> "/invoices/abc"
+// Api.invoices.$id("abc")() -> "/invoices/abc"
 ```
 
 With children:
@@ -124,7 +124,7 @@ path("invoices", [
   ]),
 ]);
 
-// Api.invoices.id("abc").customers() -> "/invoices/abc/customers"
+// Api.invoices.$id("abc").customers() -> "/invoices/abc/customers"
 ```
 
 ### `wrap(name, predicate, children?)`
@@ -143,11 +143,28 @@ path("core", [
   ]),
 ]);
 
-Api.core.admin({ isAdmin: true }).invoices();  // "/core/admin/invoices"
-Api.core.admin({ isAdmin: false }).invoices(); // "/core/invoices"
+Api.core.$admin({ isAdmin: true }).invoices();  // "/core/admin/invoices"
+Api.core.$admin({ isAdmin: false }).invoices(); // "/core/invoices"
 ```
 
 > `wrap` is ideal for *well-known*, reusable gates: `admin`, `v2`, `tenant`, etc.
+
+### `pick(name, segments, children?)`
+
+An enumerated segment group *defined in the tree*.
+
+```ts
+type User = { isAdmin: boolean } | null;
+
+path("core", [
+  pick("role", { admin: "admin", user: ["user", "role"] }, [
+    path("invoices", [keep()]),
+  ]),
+]);
+
+Api.core.$role("admin").invoices();  // "/core/admin/invoices"
+Api.core.$role("user").invoices(); // "/core/user/role/invoices"
+```
 
 ### `.$when(cond, segment | segment[])`
 
@@ -156,7 +173,7 @@ Ad‑hoc conditional segment insertion at **runtime**, anywhere in the chain.
 ```ts
 Api.core.$when(isAdmin, "admin").invoices();
 Api.core.$when(true, ["tenant", tenantId]).invoices();
-Api.invoices.id("abc").$when(flags.preview, "preview").activities();
+Api.invoices.$id("abc").$when(flags.preview, "preview").activities();
 ```
 
 - `cond = false` → no-op
@@ -216,18 +233,18 @@ export const Api = root([
 
 // usage
 Api.invoices(); // "/invoices"
-Api.invoices.id("123").customers(); // "/invoices/123/customers"
+Api.invoices.$id("123").customers(); // "/invoices/123/customers"
 
 // runtime insert
 Api.core.$when(true, "v2").invoices(); // "/core/v2/invoices"
-Api.core.admin({ isAdmin: true }).$when(true, "v2").invoices(); // "/core/admin/v2/invoices"
+Api.core.$admin({ isAdmin: true }).$when(true, "v2").invoices(); // "/core/admin/v2/invoices"
 ```
 
 ### Autocomplete-friendly patterns
 Because everything is computed from the definition tree, your editor can autocomplete:
 
 - paths (`Api.invoices`, `Api.orders.export`)
-- slots (`Api.invoices.id(…)`)
+- slots (`Api.invoices.$id(…)`)
 - nested children (`…id("x").customers()`)
 
 ---
@@ -237,9 +254,10 @@ Because everything is computed from the definition tree, your editor can autocom
 ### Exports
 
 - `root(defs)`
-- `path(name, rest?)`
-- `slot(name, rest?)`
-- `wrap(name, when, rest?)`
+- `path(name, defs?)`
+- `slot(name, defs?)`
+- `wrap(name, when, defs?)`
+- `pick(name, mode, defs?)`
 - `keep()`
 
 ### Path level builders
@@ -272,7 +290,7 @@ const Api = root([
   path("invoices", [keep(), slot("id")]),
 ]);
 
-Api.invoices.id("123")(); // "/invoices/123"
+Api.invoices.$id("123")(); // "/invoices/123"
 ```
 
 #### `route-sprout/dialect-step`
@@ -302,7 +320,7 @@ const Api = grow([
   ]),
 ]);
 
-Api.core.admin({ isAdmin: true }).jobs(); // "/core/admin/jobs"
+Api.core.$admin({ isAdmin: true }).jobs(); // "/core/admin/jobs"
 ```
 
 #### `route-sprout/dialect-node`
@@ -315,7 +333,7 @@ const Api = link([
   node("tasks", [base(), bind("id", [node("logs")])]),
 ]);
 
-Api.tasks.id("x").logs(); // "/tasks/x/logs"
+Api.tasks.$id("x").logs(); // "/tasks/x/logs"
 ```
 
 ### Mix-and-match?
@@ -347,7 +365,7 @@ import { root, path, slot, keep } from "route-sprout";
 test("builds routes", () => {
   const Api = root([path("invoices", [keep(), slot("id")])] as const);
   expect(Api.invoices()).toBe("/invoices");
-  expect(Api.invoices.id("x")()).toBe("/invoices/x");
+  expect(Api.invoices.$id("x")()).toBe("/invoices/x");
 });
 ```
 

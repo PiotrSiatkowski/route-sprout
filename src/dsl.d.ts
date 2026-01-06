@@ -1,6 +1,9 @@
 // ---------- Helpers ----------------------
-export type KebabToCamel<S extends string> = S extends `${infer A}-${infer B}`
-	? `${A}${Capitalize<KebabToCamel<B>>}`
+export type Delimiter = '_' | '-'
+export type ToCamelCase<S extends string> = S extends `${infer A}${Delimiter}${infer B}`
+	? A extends ''
+		? ToCamelCase<B>
+		: `${A}${Capitalize<ToCamelCase<B>>}`
 	: S
 
 // ---------- Shared public types ----------
@@ -13,84 +16,77 @@ export type Keep = { kind: 'keep' }
 export type Path<
 	Name extends string = string,
 	Uuid extends string = string,
-	Rest extends readonly PathDef[] = readonly PathDef[],
-> = { kind: 'path'; name: Name; uuid: Uuid; rest: Rest }
+	List extends readonly PathDef[] = readonly PathDef[],
+> = { kind: 'path'; name: Name; uuid: Uuid; list: List }
 
 export type Slot<
 	Name extends string = string,
 	Uuid extends string = string,
-	Rest extends readonly PathDef[] = readonly PathDef[],
-> = { kind: 'slot'; name: Name; uuid: Uuid; rest: Rest }
+	List extends readonly PathDef[] = readonly PathDef[],
+> = { kind: 'slot'; name: Name; uuid: Uuid; list: List }
 
 export type Wrap<
 	Name extends string = string,
 	Uuid extends string = string,
-	Rest extends readonly PathDef[] = readonly PathDef[],
+	List extends readonly PathDef[] = readonly PathDef[],
 	Args = unknown,
-> = { kind: 'wrap'; name: Name; uuid: Uuid; rest: Rest; when: (args: Args) => boolean }
+> = { kind: 'wrap'; name: Name; uuid: Uuid; list: List; when: (args: Args) => boolean }
 
-export type SlotDef =
-	| Path<string, readonly PathDef[]>
-	| Slot<string, readonly PathDef[]>
-	| Wrap<string, readonly PathDef[], any>
-export type PathDef = SlotDef | Keep
+export type Pick<
+	Name extends string = string,
+	Uuid extends string = string,
+	Mode extends Record<string, readonly Segment[]> = Record<string, readonly Segment[]>,
+	List extends readonly PathDef[] = readonly PathDef[],
+> = { kind: 'pick'; name: Name; uuid: Uuid; mode: Mode; list: List }
+
+export type SlotDef = Path | Slot | Wrap | Pick
+export type PathDef = Path | Slot | Wrap | Pick | Keep
 
 // ---------- Type-level route builder ----------
-export interface Whenable {
+type PickKey<M> = Extract<keyof M, string>
+type List<Defs extends readonly PathDef[]> = Defs[number]
+type CallIfKeep<U, Props> =
+	Extract<U, Keep> extends never ? Props : ((search?: SParams) => string) & Props
+type WithWhen<T> = T & {
 	$when(cond: boolean, seg: Segment | readonly Segment[]): this
 	$join(seg: Segment | readonly Segment[]): this
 }
 
-type HasKeep<Rest extends readonly PathDef[]> =
-	Extract<Rest[number], Keep> extends never ? false : true
-
-type NonKeepChildren<Rest extends readonly PathDef[]> = Exclude<Rest[number], Keep>
-
-type PropsFromChildren<Rest extends readonly PathDef[]> = {
-	[C in NonKeepChildren<Rest> as C extends { name: infer N extends string }
-		? N
+type PropsFromChildren<Defs extends readonly PathDef[]> = {
+	[C in Exclude<List<Defs>, Keep> as C extends { uuid: infer N extends string }
+		? ToCamelCase<N>
 		: never]: C extends Path<any, any, any>
 		? RouteFromPath<C>
 		: C extends Slot<any, any, any>
 			? RouteFromSlot<C>
 			: C extends Wrap<any, any, any, any>
 				? RouteFromWrap<C>
-				: never
+				: C extends Pick<any, any, any, any>
+					? RouteFromPick<C>
+					: never
 }
 
-type WithWhen<T> = T & Whenable
-
-// Example: apply it to the outputs
-type RouteFromPath<N extends Path<any, any, any>> = WithWhen<
-	N['rest'] extends readonly []
+type RouteFromPath<Node extends Path<any, any, any>> = WithWhen<
+	Node['list'] extends readonly []
 		? (search?: SParams) => string
-		: HasKeep<N['rest']> extends true
-			? ((search?: SParams) => string) & PropsFromChildren<N['rest']>
-			: PropsFromChildren<N['rest']>
+		: CallIfKeep<List<Node['list']>, PropsFromChildren<Node['list']>>
 >
 
-type SlotResult<Rest extends readonly PathDef[]> = WithWhen<
-	Rest extends readonly []
+type RouteFromSlot<Node extends Slot<any, any, any>> = (param: Segment) => SlotResult<Node['list']>
+type SlotResult<Defs extends readonly PathDef[]> = WithWhen<
+	Defs extends readonly []
 		? (search?: SParams) => string
-		: HasKeep<Rest> extends true
-			? ((search?: SParams) => string) & PropsFromChildren<Rest>
-			: PropsFromChildren<Rest>
+		: CallIfKeep<List<Defs>, PropsFromChildren<Defs>>
 >
 
-type RouteFromSlot<I extends Slot<any, any, any>> = (param: Segment) => SlotResult<I['rest']>
+type RouteFromWrap<W extends Wrap<any, any, any, any>> = (
+	arg: Parameters<W['when']>[0]
+) => WithWhen<CallIfKeep<List<W['list']>, PropsFromChildren<W['list']>>>
 
-type WrapArg<W extends Wrap<any, any, any, any>> = Parameters<W['when']>[0]
-
-type WrapResult<Rest extends readonly PathDef[]> = WithWhen<
-	HasKeep<Rest> extends true
-		? ((search?: SParams) => string) & PropsFromChildren<Rest>
-		: PropsFromChildren<Rest>
->
-
-type RouteFromWrap<W extends Wrap<any, any, any, any>> = (arg: WrapArg<W>) => WrapResult<W['rest']>
+type RouteFromPick<P extends Pick<any, any, any, any>> = (
+	val: PickKey<P['mode']>
+) => RoutesFromDefs<P['list']>
 
 export type RoutesFromDefs<Defs extends readonly PathDef[]> = WithWhen<
-	HasKeep<Defs> extends true
-		? ((search?: SParams) => string) & PropsFromChildren<Defs>
-		: PropsFromChildren<Defs>
+	CallIfKeep<List<Defs>, PropsFromChildren<Defs>>
 >
