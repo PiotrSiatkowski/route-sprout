@@ -1,6 +1,6 @@
 {
 	"name": "route-sprout",
-	"version": "3.2.0",
+	"version": "3.2.1",
 	"description": "A tiny, cute DSL that grows type-safe, composable URL builders from a declarative route tree.",
 	"author": "Piotr Siatkowski <p.siatkowski@gmail.com>",
 	"license": "MIT",

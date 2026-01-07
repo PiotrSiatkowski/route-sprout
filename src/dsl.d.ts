@@ -10,6 +10,7 @@ export type ToCamelCase<S extends string> = S extends `${infer A}${Delimiter}${i
 export type Segment = string | number
 export type SParams =
 	| string
+	| null
 	| URLSearchParams
 	| Record<string, string | number | boolean | null | undefined>
 

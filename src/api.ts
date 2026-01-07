@@ -117,7 +117,7 @@ export const root = <const Defs extends readonly PathDef[]>(defs: Defs): RoutesF
 	buildNode([], path('', defs)) as unknown as RoutesFromDefs<Defs>
 
 // ---------- Runtime implementation ----------
-const sParamsToString = (search: SParams): string => {
+const sParamsToString = (search: Exclude<SParams, null>): string => {
 	if (search instanceof URLSearchParams) {
 		return search.toString()
 	}
