@@ -117,11 +117,30 @@ export const root = <const Defs extends readonly PathDef[]>(defs: Defs): RoutesF
 	buildNode([], path('', defs)) as unknown as RoutesFromDefs<Defs>
 
 // ---------- Runtime implementation ----------
-const url = (path: Segment[], search?: SParams) =>
+const sParamsToString = (search: SParams): string => {
+	if (search instanceof URLSearchParams) {
+		return search.toString()
+	}
+
+	if (typeof search === 'string') {
+		return search
+	}
+
+	// Record case
+	const params = new URLSearchParams()
+	for (const [key, value] of Object.entries(search)) {
+		if (value === null || value === undefined) continue
+		params.append(key, String(value))
+	}
+
+	return params.toString()
+}
+
+const url = (path: Segment[], search?: SParams | null | undefined) =>
 	`/${path
 		.filter(Boolean)
 		.join('/')
-		.replace(/\/{2,}/g, '/')}${search ? `?${search}` : ''}`
+		.replace(/\/{2,}/g, '/')}${search ? `?${sParamsToString(search)}` : ''}`
 
 function buildNode(prefix: Segment[], parent: SlotDef) {
 	const hasKeep = (pathDef: SlotDef) => pathDef.list.some((node: any) => node.kind === 'keep')

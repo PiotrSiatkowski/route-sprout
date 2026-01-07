@@ -8,7 +8,10 @@ export type ToCamelCase<S extends string> = S extends `${infer A}${Delimiter}${i
 
 // ---------- Shared public types ----------
 export type Segment = string | number
-export type SParams = string | URLSearchParams
+export type SParams =
+	| string
+	| URLSearchParams
+	| Record<string, string | number | boolean | null | undefined>
 
 // ---------- DSL definition types ----------
 export type Keep = { kind: 'keep' }
