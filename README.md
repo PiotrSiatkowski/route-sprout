@@ -15,11 +15,7 @@ A tiny, cute DSL that grows **type-safe, composable URL builders** from a declar
 ## Install
 
 ```bash
-npm i route-sprout
-# or
-pnpm add route-sprout
-# or
-yarn add route-sprout
+npm install route-sprout
 ```
 
 ## Quick start
@@ -221,6 +217,35 @@ Api.invoices.$id("abc").$when(flags.preview, "preview").activities();
 > `.$when()` is ideal when you don’t want to bake a wrapper into the route tree.
 > `.$join()` can be used in place of $when with condition being always true.
 
+### `$tail(tail)` (end the URL anywhere)
+
+`$tail()` always returns a **string URL** for the current point in the chain, and then appends `tail` verbatim.
+
+This is especially useful for “dot paths” that are **not callable** (no `keep()`), where you still want to produce a URL without restructuring your route tree.
+
+```ts
+import { keep, path, root, slot } from 'route-sprout'
+
+const Api = root([
+  path('jobs', [
+    // NOTE: no keep() here, so `jobs` is NOT callable
+    slot('id', [
+      path('activities'), // also not callable
+    ]),
+  ]),
+])
+
+// Not callable (no keep):
+// Api.jobs()                   // ❌
+// Api.jobs.$id(1)()            // ❌
+// Api.jobs.$id(1).activities() // ❌
+
+// But you can still end the URL anywhere:
+Api.jobs.$tail('?page=1')                    // "/jobs?page=1"
+Api.jobs.$id(1).$tail('#details')            // "/jobs/1#details"
+Api.jobs.$id(1).activities.$tail('?q=abc')   // "/jobs/1/activities?q=abc"
+```
+
 ---
 
 ## Search params
@@ -303,6 +328,7 @@ Because everything is computed from the definition tree, your editor can autocom
 
 - `$when(predicate, segments)`
 - `$join(segments)`
+- `$tail(string)`
 
 ---
 

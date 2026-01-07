@@ -234,6 +234,10 @@ function attachWhenAndJoin(target: any, basePath: Segment[], list: readonly Path
 		return when(true, seg)
 	}
 
+	target.$tail = function tail(tail: string) {
+		return `${url(basePath)}${tail}`
+	}
+
 	return target
 }
 

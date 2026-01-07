@@ -1123,4 +1123,81 @@ describe('general edge cases', () => {
 			expect(keys).not.toContain('api')
 		})
 	})
+
+	describe('$tail', () => {
+		it('works on a non-callable path (no keep)', () => {
+			const Api = root([path('jobs', [path('activities')])])
+
+			// jobs is NOT callable (no keep), but $tail should still work
+			expect(Api.jobs.$tail('?x=1')).toBe('/jobs?x=1')
+			expect(Api.jobs.activities.$tail('#hash')).toBe('/jobs/activities#hash')
+		})
+
+		it('works on a non-callable slot result (slot has no keep)', () => {
+			const Api = root([path('jobs', [slot('id', [path('activities')])])])
+
+			const sub = Api.jobs.$id('7') // non-callable (no keep under slot)
+			expect(sub.$tail('?x=1')).toBe('/jobs/7?x=1')
+			expect(sub.activities.$tail('#h')).toBe('/jobs/7/activities#h')
+		})
+
+		it('works on callable nodes too (keep present)', () => {
+			const Api = root([path('jobs', [keep(), path('activities', [keep()])])])
+
+			expect(Api.jobs.$tail('?a=1')).toBe('/jobs?a=1')
+			expect(Api.jobs().toString()).toBe('/jobs') // sanity: still callable
+			expect(Api.jobs.activities.$tail('?b=2')).toBe('/jobs/activities?b=2')
+			expect(Api.jobs.activities('?p=1')).toBe('/jobs/activities??p=1') // shows tail is raw append; this is fine
+		})
+
+		it('works after $join and $when (even if resulting node is not callable)', () => {
+			const Api = root([path('jobs', [path('activities')])])
+
+			expect(Api.jobs.$join('x').$tail('?t=1')).toBe('/jobs/x?t=1')
+			expect(Api.jobs.$when(true, ['a', 'b']).$tail('#h')).toBe('/jobs/a/b#h')
+			expect(Api.jobs.$when(false, 'ignored').$tail('#h')).toBe('/jobs#h')
+		})
+
+		it('works through wrap and pick results', () => {
+			const Api = root([
+				path('core', [
+					wrap('admin', (u: { isAdmin: boolean }) => u.isAdmin, [
+						path('jobs', [path('activities')]),
+					]),
+					pick('mode', { admin: ['admin'], user: [] } as const, [
+						path('jobs', [path('activities')]),
+					]),
+				]),
+			])
+
+			// wrap false => no /admin segment, but still non-callable and $tail works
+			expect(Api.core.$admin({ isAdmin: false }).jobs.$tail('?x=1')).toBe('/core/jobs?x=1')
+			// wrap true => /admin segment
+			expect(Api.core.$admin({ isAdmin: true }).jobs.$tail('?x=1')).toBe(
+				'/core/admin/jobs?x=1'
+			)
+
+			// pick adds chosen prefix segments
+			expect(Api.core.$mode('admin').jobs.$tail('#h')).toBe('/core/admin/jobs#h')
+			expect(Api.core.$mode('user').jobs.activities.$tail('?q=1')).toBe(
+				'/core/jobs/activities?q=1'
+			)
+		})
+
+		it('type: $tail returns string everywhere (including non-callable nodes)', () => {
+			const Api = root([path('jobs', [slot('id', [path('activities')])])])
+
+			const sub = Api.jobs.$id(1)
+
+			expectTypeOf(Api.jobs.$tail).toBeFunction()
+			expectTypeOf(Api.jobs.$tail('x')).toEqualTypeOf<string>()
+
+			expectTypeOf(sub.$tail('x')).toEqualTypeOf<string>()
+			expectTypeOf(sub.activities.$tail('x')).toEqualTypeOf<string>()
+
+			// non-callable: should NOT be callable, but $tail exists
+			expect(() => (sub as any)()).toThrow()
+			expect(sub.$tail('?ok')).toBe('/jobs/1?ok')
+		})
+	})
 })

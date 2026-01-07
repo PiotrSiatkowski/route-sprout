@@ -59,6 +59,7 @@ type CallIfKeep<U, Props> =
 type WithWhen<T> = T & {
 	$when(cond: boolean, seg: Segment | readonly Segment[]): this
 	$join(seg: Segment | readonly Segment[]): this
+	$tail(tail: string): string
 }
 type ExpandBase<U> =
 	U extends Base<any, infer L extends readonly PathDef[]>
