@@ -39,8 +39,8 @@ const Api = root([
   ]),
 ]);
 
-Api.invoices();                          // "/invoices"
-Api.invoices("page=1");                  // "/invoices?page=1"
+Api.invoices();                           // "/invoices"
+Api.invoices("page=1");                   // "/invoices?page=1"
 Api.invoices.$id("abc")("a=1");           // "/invoices/abc?a=1"
 Api.invoices.$id("abc").customers();      // "/invoices/abc/customers"
 ```
@@ -79,6 +79,31 @@ This DSL gives you:
 ### `root(children)`
 
 An entry point for your root tree that naturally denotes '/' path.
+
+### `base(segs, list)` (hidden prefix)
+
+`base()` adds one or more URL segments **without creating an object key in the chain**.
+
+- Useful for global prefixes like `api`, `v2`, `internal`, etc.
+- The prefix is **transparent** at the type level and runtime chain level.
+- Supports a single segment or an array of segments: `Segment | Segment[]`.
+
+```ts
+import { base, keep, path, root, slot } from 'route-sprout'
+
+export const Api = root([
+  base('api', [
+    path('orders', [keep()]),
+    path('customers', [slot('id', [keep()])]),
+  ]),
+])
+
+Api.orders()            // "/api/orders"
+Api.customers.$id(7)()  // "/api/customers/7"
+
+// There is no Api.api property:
+(Api as any).api // undefined
+```
 
 ### `path(name, children?)`
 
@@ -163,7 +188,20 @@ path("core", [
 ]);
 
 Api.core.$role("admin").invoices();  // "/core/admin/invoices"
-Api.core.$role("user").invoices(); // "/core/user/role/invoices"
+Api.core.$role("user").invoices();   // "/core/user/role/invoices"
+```
+
+> **Type inference tip:** to have TypeScript restrict `$mode(...)` to known keys,
+> define the `mode` object with `as const`:
+>
+> ```ts
+> pick('mode', {
+>   admin: ['admin'],
+>   user: [],
+> }, [...])
+> ```
+>
+> Then `$mode('nope')` is a type error.
 ```
 
 ### `.$when(cond, segment | segment[])`
@@ -254,6 +292,7 @@ Because everything is computed from the definition tree, your editor can autocom
 ### Exports
 
 - `root(defs)`
+- `base(segs, defs?)`
 - `path(name, defs?)`
 - `slot(name, defs?)`
 - `wrap(name, when, defs?)`

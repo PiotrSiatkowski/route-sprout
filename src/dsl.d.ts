@@ -39,8 +39,13 @@ export type Pick<
 	List extends readonly PathDef[] = readonly PathDef[],
 > = { kind: 'pick'; name: Name; uuid: Uuid; mode: Mode; list: List }
 
+export type Base<
+	Segs extends Segment | readonly Segment[] = Segment | readonly Segment[],
+	List extends readonly PathDef[] = readonly PathDef[],
+> = { kind: 'base'; segs: Segs; list: List }
+
 export type SlotDef = Path | Slot | Wrap | Pick
-export type PathDef = Path | Slot | Wrap | Pick | Keep
+export type PathDef = Path | Slot | Wrap | Pick | Keep | Base<any>
 
 // ---------- Type-level route builder ----------
 type PickKey<M> = Extract<keyof M, string>
@@ -51,9 +56,15 @@ type WithWhen<T> = T & {
 	$when(cond: boolean, seg: Segment | readonly Segment[]): this
 	$join(seg: Segment | readonly Segment[]): this
 }
+type ExpandBase<U> =
+	U extends Base<any, infer L extends readonly PathDef[]>
+		? ExpandBase<Exclude<L[number], Keep>>
+		: U
+
+type VisibleChild<Defs extends readonly PathDef[]> = ExpandBase<Exclude<List<Defs>, Keep>>
 
 type PropsFromChildren<Defs extends readonly PathDef[]> = {
-	[C in Exclude<List<Defs>, Keep> as C extends { uuid: infer N extends string }
+	[C in VisibleChild<Defs> as C extends { uuid: infer N extends string }
 		? ToCamelCase<N>
 		: never]: C extends Path<any, any, any>
 		? RouteFromPath<C>

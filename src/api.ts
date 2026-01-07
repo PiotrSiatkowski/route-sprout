@@ -1,4 +1,5 @@
 import {
+	Base,
 	Keep,
 	Path,
 	PathDef,
@@ -40,6 +41,8 @@ function assertValidName<const Name extends string>(
 
 	return name.trim() as Name
 }
+
+const toSegs = (seg: Segment | readonly Segment[]) => (Array.isArray(seg) ? seg : [seg])
 
 // ---------- DSL helpers (typed) ----------
 export const keep = (): Keep => ({ kind: 'keep' })
@@ -102,6 +105,14 @@ export const pick = <
 	list: (list ?? []) as List,
 })
 
+export const base = <
+	const Segs extends Segment | readonly Segment[],
+	const List extends readonly PathDef[] = readonly [],
+>(
+	segs: Segs,
+	list?: List
+): Base<Segs, List> => ({ kind: 'base', segs, list: (list ?? []) as List })
+
 export const root = <const Defs extends readonly PathDef[]>(defs: Defs): RoutesFromDefs<Defs> =>
 	buildNode([], path('', defs)) as unknown as RoutesFromDefs<Defs>
 
@@ -128,7 +139,23 @@ function buildNode(prefix: Segment[], parent: SlotDef) {
 			}
 		}
 
-		if (child.kind === 'slot') {
+		if (child.kind === 'base') {
+			const nextPrefix = [...allPath, ...toSegs(child.segs)]
+			const sub: any = buildNode(nextPrefix, path('', child.list))
+
+			for (const key of Reflect.ownKeys(sub)) {
+				if (key === '$when' || key === '$join') continue
+				const desc = Object.getOwnPropertyDescriptor(sub, key)
+				if (!desc?.enumerable) continue
+
+				if (key in target) {
+					throw new Error(
+						`base() merge collision on key "${String(key)}" under "${allPath.join('/') || '/'}"`
+					)
+				}
+				Object.defineProperty(target, key, desc)
+			}
+		} else if (child.kind === 'slot') {
 			target[child.uuid] = function bind(param: Segment) {
 				const next = [...allPath, param]
 
@@ -171,7 +198,7 @@ function buildNode(prefix: Segment[], parent: SlotDef) {
 
 function attachWhenAndJoin(target: any, basePath: Segment[], list: readonly PathDef[]) {
 	const when = (cond: boolean, seg: Segment | readonly Segment[]) => {
-		const nextPath = cond ? [...basePath, ...(Array.isArray(seg) ? seg : [seg])] : basePath
+		const nextPath = cond ? [...basePath, ...toSegs(seg)] : basePath
 
 		// If this is a callable leaf (no children), preserve callability after .when().
 		if (list.length === 0 && typeof target === 'function') {

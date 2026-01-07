@@ -1,1 +1,9 @@
-export { root as link, path as node, slot as bind, keep as base, wrap as mask, pick } from './api'
+export {
+	root as link,
+	path as node,
+	slot as bind,
+	keep as call,
+	wrap as mask,
+	pick,
+	base,
+} from './api'

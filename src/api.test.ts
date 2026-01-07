@@ -1,6 +1,6 @@
 import { describe, it, expectTypeOf, expect } from 'vitest'
 import { SParams } from './dsl'
-import { root, path, slot, keep, wrap, pick } from './api'
+import { root, path, slot, keep, wrap, pick, base } from './api'
 
 // Helper to build params consistently
 const qs = (pairs: Record<string, string>): URLSearchParams => new URLSearchParams(pairs)
@@ -997,6 +997,130 @@ describe('general edge cases', () => {
 			])
 
 			expect(Api.core.admin.$admin(true).jobs()).toBe('/core/admin/admin/jobs')
+		})
+	})
+
+	describe('base()', () => {
+		it('adds hidden prefix and does not create property in chain', () => {
+			const Api = root([
+				base('api', [path('orders', [keep()]), path('customers', [slot('id', [keep()])])]),
+			])
+
+			expect((Api as any).api).toBeUndefined()
+			expect(Api.orders()).toBe('/api/orders')
+			expect(Api.customers.$id(7)()).toBe('/api/customers/7')
+		})
+
+		it('supports multiple segments via array', () => {
+			const Api = root([base(['api', 'v2'], [path('orders', [keep()])])])
+			expect(Api.orders()).toBe('/api/v2/orders')
+		})
+
+		it('can be nested under visible path without creating intermediate key', () => {
+			const Api = root([
+				path('customers', [
+					base('admin', [path('pricing-plans', [keep()])]),
+					path('users', [keep()]),
+				]),
+			])
+
+			expect((Api.customers as any).admin).toBeUndefined()
+			expect(Api.customers.pricingPlans()).toBe('/customers/admin/pricing-plans')
+			expect(Api.customers.users()).toBe('/customers/users')
+		})
+
+		it('base inside base composes prefixes', () => {
+			const Api = root([base('api', [base(['v2', 'x'], [path('orders', [keep()])])])])
+
+			expect(Api.orders()).toBe('/api/v2/x/orders')
+		})
+
+		it('keeps callability / keep() behaviour in subtree', () => {
+			const Api = root([
+				base('api', [
+					path('orders', [keep(), slot('id', [keep(), path('export', [keep()])])]),
+				]),
+			])
+
+			expect(Api.orders()).toBe('/api/orders')
+
+			const sub = Api.orders.$id('7')
+			expect(sub()).toBe('/api/orders/7')
+			expect(sub.export()).toBe('/api/orders/7/export')
+		})
+
+		it('$when and $join work after merging base subtree', () => {
+			const Api = root([base('api', [path('orders', [keep()])])])
+
+			// add a segment
+			expect(Api.orders.$when(true, 'x')()).toBe('/api/orders/x')
+
+			// passthrough
+			expect(Api.orders.$when(false, 'x')()).toBe('/api/orders')
+
+			// alias
+			expect(Api.orders.$join(['x', 'y'])()).toBe('/api/orders/x/y')
+		})
+
+		it('throws on merge collision (same key would be defined twice)', () => {
+			expect(() =>
+				root([
+					path('x', [
+						path('pricing-plans', [keep()]),
+						base('api', [
+							// camelCase("pricing-plans") => pricingPlans, collides with above
+							path('pricing-plans', [keep()]),
+						]),
+					]),
+				])
+			).toThrow(/merge collision/i)
+		})
+
+		it('does not silently overwrite when base subtree defines existing key', () => {
+			expect(() =>
+				root([
+					path('x', [path('orders', [keep()]), base('api', [path('orders', [keep()])])]),
+				])
+			).toThrow(/merge collision/i)
+		})
+
+		it('interacts with wrap: base prefix is always present; wrap segment is conditional', () => {
+			const canAdmin = (c: { admin: boolean }) => c.admin
+
+			const Api = root([base('api', [wrap('admin', canAdmin, [path('jobs', [keep()])])])])
+
+			expect(Api.$admin({ admin: true }).jobs()).toBe('/api/admin/jobs')
+			expect(Api.$admin({ admin: false }).jobs()).toBe('/api/jobs')
+		})
+
+		it('interacts with pick: base prefix is always present; pick adds its mapped segments', () => {
+			const Api = root([
+				base('api', [
+					pick('mode', { admin: ['admin'], user: [], partner: ['partner', 'v2'] }, [
+						path('jobs', [keep()]),
+					]),
+				]),
+			])
+
+			expect(Api.$mode('admin').jobs()).toBe('/api/admin/jobs')
+			expect(Api.$mode('user').jobs()).toBe('/api/jobs')
+			expect(Api.$mode('partner').jobs()).toBe('/api/partner/v2/jobs')
+		})
+
+		it('throws on unknown pick value even under base', () => {
+			const Api = root([
+				base('api', [pick('mode', { admin: ['admin'] }, [path('jobs', [keep()])])]),
+			])
+
+			expect(() => (Api as any).$mode('nope')).toThrow(/unknown value/i)
+		})
+
+		it('does not create enumerable junk props; base only contributes routes', () => {
+			const Api = root([base('api', [path('orders', [keep()])])])
+
+			const keys = Object.keys(Api)
+			expect(keys).toContain('orders')
+			expect(keys).not.toContain('api')
 		})
 	})
 })
